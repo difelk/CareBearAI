@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify, request
 from app.services.csv_service import insert_csv_data
 from app.ML.cluster import handle_clustering
+from app.services.csvhandler import extract_header, get_all_csv_data;
 
 api_bp = Blueprint('api', __name__)
 
@@ -48,6 +49,20 @@ def delete_item(index):
         return jsonify({"error": "Item not found"}), 404
     deleted_item = items.pop(index)
     return jsonify(deleted_item)
+
+
+# Get all CSV data
+@api_bp.route('/csv/data', methods=['GET'])
+def get_all_data():
+    all_data = get_all_csv_data(csv_file_path)
+    return jsonify(all_data)
+
+
+@api_bp.route('/csv/headers', methods=['GET'])
+def extract_csv_header():
+    # Get CSV headers
+    headers = extract_header(csv_file_path)
+    return jsonify(headers)
 
 
 # k-mean post
