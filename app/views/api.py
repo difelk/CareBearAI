@@ -1,9 +1,11 @@
 from flask import Blueprint, jsonify, request
+from flask_cors import CORS
 from app.services.csv_service import insert_csv_data
 from app.ML.cluster import handle_clustering
 from app.services.csvhandler import extract_header, get_all_csv_data;
 
 api_bp = Blueprint('api', __name__)
+CORS(api_bp)
 
 items = []
 
