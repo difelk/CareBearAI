@@ -2,12 +2,16 @@ from flask import Blueprint, jsonify, request
 from app.services.csv_service import insert_csv_data
 from app.ML.cluster import handle_clustering
 from app.services.csvhandler import extract_header, get_all_csv_data;
+from app.ML.random_forest import load_data, explore_data, preprocess_data, split_data, train_model, evaluate_model, \
+    get_feature_importances, create_plots, main
+import pandas as pd
+
 
 api_bp = Blueprint('api', __name__)
 
 items = []
 
-csv_file_path = r'C:\Users\Rananjaya\Desktop\ML\backend\app\dataset\wfp_food_prices_lka(wfp_food_prices_lka).csv'
+csv_file_path = r'/Users/ilmeedesilva/Downloads/wfp_food_prices_lka.csv'
 
 
 @api_bp.route('/csv', methods=['POST'])
@@ -77,3 +81,56 @@ def cluster_data():
     result = handle_clustering(csv_file_path, num_clusters, features)
 
     return jsonify(result)
+
+@api_bp.route('/rf-load', methods=['GET'])
+def load_rf_data():
+    try:
+        result = load_data(csv_file_path)
+
+        result_json = result.to_dict(orient='records')
+
+        return jsonify(result_json)
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@api_bp.route('/rf-explore', methods=['GET'])
+def explore_rf_data():
+    try:
+        df = load_data(csv_file_path)
+
+        result = explore_data(df)
+
+        return jsonify(result)
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@api_bp.route('/rf-evaluate', methods=['GET'])
+def evaluate_rf_data():
+    try:
+
+        result = evaluate_model(csv_file_path)
+
+        return jsonify(result)
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@api_bp.route('/rf-feature-importances', methods=['GET'])
+def rf_feature_importances():
+    try:
+        data = load_data(csv_file_path)
+        features, target = preprocess_data(data)
+
+        x_train, x_test, y_train, y_test = split_data(features, target)
+        best_rf, _ = train_model(x_train, y_train)
+        result = get_feature_importances(best_rf, features)
+
+        return jsonify(result)
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
