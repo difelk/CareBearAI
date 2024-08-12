@@ -1,8 +1,18 @@
 from flask import Blueprint, jsonify, request
+from app.services.csv_service import insert_csv_data
 
 api_bp = Blueprint('api', __name__)
 
 items = []
+
+
+@api_bp.route('/csv', methods=['POST'])
+def upload_csv():
+    result = insert_csv_data()
+    if result == "successful":
+        return jsonify({"message": "CSV data successfully inserted."}), 200
+    else:
+        return jsonify({"error": result}), 500
 
 # Get all items
 @api_bp.route('/items', methods=['GET'])
