@@ -35,6 +35,17 @@ items = []
 csv_file_path = get_csv_file_path()
 
 
+def filter_and_clean_data(file_path, start_date, end_date):
+    df = pd.read_csv(file_path)
+    df['date'] = pd.to_datetime(df['date'])
+
+    filtered_df = df[(df['date'] >= start_date) & (df['date'] <= end_date)]
+
+    cleaned_df = filtered_df.dropna()
+
+    return cleaned_df
+
+
 @api_bp.route('/csv', methods=['POST'])
 def upload_csv():
     result = insert_csv_data()
@@ -113,13 +124,24 @@ def explore_rf_data():
         return jsonify({"error": str(e)}), 500
 
 
+# rf-evaluate?start_date=2004-01-15&end_date=2004-05-15
 @api_bp.route('/rf-evaluate', methods=['GET'])
 def evaluate_rf_data():
     try:
-        result = evaluate_model(csv_file_path)
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+
+        if not start_date or not end_date:
+            return jsonify({"error": "Please provide both start_date and end_date"}), 400
+
+        filtered_data = filter_and_clean_data(csv_file_path, start_date, end_date)
+
+        result = evaluate_model(filtered_data)
+
         return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 
 @api_bp.route('/rf-feature-importances', methods=['GET'])

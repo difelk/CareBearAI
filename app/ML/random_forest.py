@@ -91,10 +91,9 @@ def load_model(model_path):
         return pickle.load(file)
 
 
-def evaluate_model(file_path):
-    # Load and preprocess the data
-    data = load_data(file_path)
-    features, target = preprocess_data(data)
+def evaluate_model(df):
+    # Preprocess the data
+    features, target = preprocess_data(df)
 
     # Split the data
     x_train, x_test, y_train, y_test = train_test_split(features, target, train_size=0.8, test_size=0.2,
@@ -121,6 +120,7 @@ def evaluate_model(file_path):
                                                                                  ascending=False).to_dict(
             orient='records')
     }
+
 
 
 def get_feature_importances(best_rf, features):
