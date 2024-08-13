@@ -9,6 +9,7 @@ from sklearn.model_selection import train_test_split, GridSearchCV, cross_val_sc
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, mean_absolute_error, \
     mean_squared_error, r2_score
+from scipy import stats
 
 # Suppress warnings
 warnings.filterwarnings('ignore')
@@ -28,6 +29,15 @@ def explore_data(df):
 
 
 def preprocess_data(data):
+    # Identify and Handle Outliers
+    # Use Z-score for identifying outliers
+    z_scores = np.abs(stats.zscore(data.select_dtypes(include=[np.number])))
+    outliers = (z_scores > 3).any(axis=1)
+    data_no_outliers = data[~outliers]
+    print(f"Number of outliers removed: {sum(outliers)}")
+
+    data = data_no_outliers  # Use the data without outliers
+
     data = data.dropna()  # Dropping rows with missing values
 
     if 'date' in data.columns:
@@ -126,6 +136,27 @@ def get_feature_importances(best_rf, features):
 
 def create_plots(features, target, best_rf, evaluation_results):
     plot_paths = {}
+
+    # Outlier Identification for Plotting
+    numerical_data = features.select_dtypes(include=[np.number])
+    z_scores = np.abs(stats.zscore(numerical_data))
+    outliers = (z_scores > 3).any(axis=1)
+    features_with_outliers = features.copy()
+    features_with_outliers['outlier'] = outliers
+
+    # Plot: Outliers
+    plt.figure(figsize=(14, 8))
+    scatter = plt.scatter(features_with_outliers['latitude'], features_with_outliers['longitude'],
+                          c=features_with_outliers['outlier'], cmap='coolwarm', alpha=0.7)
+    plt.xlabel('Latitude', fontsize=14)
+    plt.ylabel('Longitude', fontsize=14)
+    plt.title('Outliers Visualization', fontsize=16)
+    plt.colorbar(scatter, label='Outlier')
+    plt.tight_layout()
+    outliers_plot_path = '/Users/ilmeedesilva/Desktop/ML Ass 4/outliers_plot.png'
+    plt.savefig(outliers_plot_path)
+    plt.close()
+    plot_paths['outliers_plot'] = outliers_plot_path
 
     # Plot: Top Feature Importances
     importances = best_rf.feature_importances_

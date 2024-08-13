@@ -16,6 +16,16 @@ from app.config import get_csv_file_path
 from app.ML.linear_regression import (
     handle_linear_regression,
     handle_linear_regression_by_date)
+from app.ML.svm import (
+    svm_load_data,
+    svm_explore_data,
+    svm_preprocess_data,
+    svm_split_data,
+    svm_train_model,
+    svm_evaluate_model,
+    svm_generate_roc_curve,
+    svm_generate_precision_recall_curve
+)
 import pandas as pd
 
 api_bp = Blueprint('api', __name__)
@@ -145,3 +155,63 @@ def linear_regression_by_date():
     result = handle_linear_regression_by_date(csv_file_path, independent_vars, dependent_var, start_date, end_date)
     return jsonify(result)
 
+
+@api_bp.route('/svm-load', methods=['GET'])
+def load_svm_data():
+    try:
+        result = svm_load_data(csv_file_path)
+        result_json = result.to_dict(orient='records')
+        return jsonify(result_json)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@api_bp.route('/svm-explore', methods=['GET'])
+def explore_svm_data():
+    try:
+        df = svm_load_data(csv_file_path)
+        result = svm_explore_data(df)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@api_bp.route('/svm-evaluate', methods=['GET'])
+def evaluate_svm_data():
+    try:
+        result = svm_evaluate_model(csv_file_path)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@api_bp.route('/svm-roc', methods=['GET'])
+def get_roc_curve():
+    try:
+        data = svm_load_data(csv_file_path)
+        features, target = svm_preprocess_data(data)
+        x_train, x_test, y_train, y_test = svm_split_data(features, target)
+        best_svc, _ = svm_train_model(x_train, y_train)
+
+        y_prob = best_svc.decision_function(x_test)
+
+        result = svm_generate_roc_curve(y_test, y_prob)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@api_bp.route('/svm-precision-recall', methods=['GET'])
+def get_precision_recall_curve():
+    try:
+        data = svm_load_data(csv_file_path)
+        features, target = svm_preprocess_data(data)
+        x_train, x_test, y_train, y_test = svm_split_data(features, target)
+        best_svc, _ = svm_train_model(x_train, y_train)
+
+        y_prob = best_svc.decision_function(x_test)
+
+        result = svm_generate_precision_recall_curve(y_test, y_prob)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
