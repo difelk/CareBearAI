@@ -10,6 +10,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, mean_absolute_error, \
     mean_squared_error, r2_score
 from scipy import stats
+from statsmodels.tsa.arima.model import ARIMA
 
 # Suppress warnings
 warnings.filterwarnings('ignore')
@@ -122,7 +123,6 @@ def evaluate_model(df):
     }
 
 
-
 def get_feature_importances(best_rf, features):
     importances = best_rf.feature_importances_
     indices = np.argsort(importances)[::-1]
@@ -132,6 +132,184 @@ def get_feature_importances(best_rf, features):
         "top_features": features.columns[top_indices].tolist(),
         "top_importances": importances[top_indices].tolist()
     }
+
+
+# def forecast_prices(data, commodity):
+#     # Filter data for the specified commodity
+#     commodity_data = data[data['commodity'] == commodity]
+#
+#     # Ensure 'date' column is in datetime format and set as index
+#     commodity_data['date'] = pd.to_datetime(commodity_data['date'])
+#     commodity_data = commodity_data.set_index('date')
+#
+#     # Resample to monthly data and interpolate missing values
+#     price_data = commodity_data['price'].resample('M').mean().interpolate()
+#
+#     # Fit ARIMA model
+#     model = ARIMA(price_data, order=(1, 1, 1))  # Adjust order as needed
+#     model_fit = model.fit()
+#
+#     # Forecast for the next 12 months
+#     forecast = model_fit.forecast(steps=12)
+#
+#     return forecast
+#
+#
+# def forecast_all_commodities(data):
+#     # Get all unique commodities
+#     commodities = data['commodity'].unique()
+#
+#     # Initialize a dictionary to store forecasts
+#     forecasts = {}
+#
+#     # Forecast for each commodity
+#     for commodity in commodities:
+#         # Filter data for the commodity
+#         commodity_data = data[data['commodity'] == commodity]
+#
+#         # Ensure 'date' column is in datetime format and set as index
+#         commodity_data['date'] = pd.to_datetime(commodity_data['date'])
+#         commodity_data = commodity_data.set_index('date')
+#
+#         # Resample to monthly data and interpolate missing values
+#         price_data = commodity_data['price'].resample('M').mean().interpolate()
+#
+#         # Fit ARIMA model
+#         model = ARIMA(price_data, order=(1, 1, 1))  # Adjust order as needed
+#         model_fit = model.fit()
+#
+#         # Forecast for the next 12 months
+#         forecast = model_fit.forecast(steps=12)
+#
+#         # Store forecast in the dictionary
+#         forecasts[commodity] = forecast.tolist()
+#
+#     return forecasts
+#
+#
+# def forecast_all_markets(data):
+#     # Get all unique markets
+#     markets = data['market'].unique()
+#
+#     # Initialize a dictionary to store forecasts
+#     forecasts = {}
+#
+#     # Forecast for each market
+#     for market in markets:
+#         # Filter data for the market
+#         market_data = data[data['market'] == market]
+#
+#         # Ensure 'date' column is in datetime format and set as index
+#         market_data['date'] = pd.to_datetime(market_data['date'])
+#         market_data = market_data.set_index('date')
+#
+#         # Resample to monthly data and interpolate missing values
+#         price_data = market_data['price'].resample('M').mean().interpolate()
+#
+#         # Fit ARIMA model
+#         model = ARIMA(price_data, order=(1, 1, 1))  # Adjust order as needed
+#         model_fit = model.fit()
+#
+#         # Forecast for the next 12 months
+#         forecast = model_fit.forecast(steps=12)
+#
+#         # Store forecast in the dictionary
+#         forecasts[market] = forecast.tolist()
+#
+#     return forecasts
+#
+#
+# def forecast_all_categories(data):
+#     # Get all unique categories
+#     categories = data['category'].unique()
+#
+#     # Initialize a dictionary to store forecasts
+#     forecasts = {}
+#
+#     # Forecast for each category
+#     for category in categories:
+#         # Filter data for the category
+#         category_data = data[data['category'] == category]
+#
+#         # Ensure 'date' column is in datetime format and set as index
+#         category_data['date'] = pd.to_datetime(category_data['date'])
+#         category_data = category_data.set_index('date')
+#
+#         # Resample to monthly data and interpolate missing values
+#         price_data = category_data['price'].resample('M').mean().interpolate()
+#
+#         # Fit ARIMA model
+#         model = ARIMA(price_data, order=(1, 1, 1))  # Adjust order as needed
+#         model_fit = model.fit()
+#
+#         # Forecast for the next 12 months
+#         forecast = model_fit.forecast(steps=12)
+#
+#         # Store forecast in the dictionary
+#         forecasts[category] = forecast.tolist()
+#
+#     return forecasts
+
+def forecast_prices(data, model, commodity=None, market=None, category=None):
+    # Filter data for the specified commodity, market, and category
+    if commodity:
+        data = data[data['commodity'] == commodity]
+    if market:
+        data = data[data['market'] == market]
+    if category:
+        data = data[data['category'] == category]
+
+    if 'date' in data.columns:
+        data['date'] = pd.to_datetime(data['date'])
+        data = data.set_index('date')
+
+    # Resample to monthly data and interpolate missing values
+    if 'price' not in data.columns or data.empty:
+        raise ValueError("No 'price' column or empty data after filtering.")
+
+    price_data = data['price'].resample('M').mean().interpolate()
+
+    if price_data.empty:
+        raise ValueError("No data available for forecasting after resampling.")
+
+    # Fit ARIMA model
+    arima_model = ARIMA(price_data, order=(1, 1, 1))  # Adjust order as needed
+    model_fit = arima_model.fit()
+
+    # Forecast for the next 12 months
+    forecast = model_fit.forecast(steps=12)
+
+    return forecast
+
+
+def forecast_all_commodities(data, model):
+    commodities = data['commodity'].unique()
+    forecasts = {}
+
+    for commodity in commodities:
+        forecasts[commodity] = forecast_prices(data, model, commodity=commodity).tolist()
+
+    return forecasts
+
+
+def forecast_all_markets(data, model):
+    markets = data['market'].unique()
+    forecasts = {}
+
+    for market in markets:
+        forecasts[market] = forecast_prices(data, model, market=market).tolist()
+
+    return forecasts
+
+
+def forecast_all_categories(data, model):
+    categories = data['category'].unique()
+    forecasts = {}
+
+    for category in categories:
+        forecasts[category] = forecast_prices(data, model, category=category).tolist()
+
+    return forecasts
 
 
 def create_plots(features, target, best_rf, evaluation_results):
@@ -263,6 +441,29 @@ def create_plots(features, target, best_rf, evaluation_results):
     plot_paths['feature_correlation_heatmap'] = feature_correlation_heatmap_path
 
     return plot_paths
+
+
+def evaluate_forecast(y_true, y_pred):
+    # Ensure y_true and y_pred are aligned and not empty
+    if y_true.empty or y_pred.empty:
+        raise ValueError("y_true or y_pred is empty.")
+
+    # Convert to the correct types if needed
+    y_true = y_true.astype(float)
+    y_pred = y_pred.astype(float)
+
+    accuracy = accuracy_score(y_true, y_pred)
+    class_report = classification_report(y_true, y_pred, output_dict=True)
+    conf_matrix = confusion_matrix(y_true, y_pred)
+    r2 = r2_score(y_true, y_pred)
+
+    return {
+        "accuracy": accuracy,
+        "classification_report": class_report,
+        "confusion_matrix": conf_matrix.tolist(),
+        "r2_score": r2
+    }
+
 
 
 def main():
