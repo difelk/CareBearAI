@@ -11,6 +11,11 @@ from app.ML.random_forest import (
     train_model,
     evaluate_model,
     get_feature_importances,
+    forecast_prices,
+    forecast_all_commodities,
+    forecast_all_categories,
+    forecast_all_markets,
+    evaluate_forecast
 )
 from app.config import get_csv_file_path
 from app.ML.linear_regression import (
@@ -27,6 +32,7 @@ from app.ML.svm import (
     svm_generate_precision_recall_curve
 )
 import pandas as pd
+from statsmodels.tsa.arima.model import ARIMA
 
 api_bp = Blueprint('api', __name__)
 CORS(api_bp)
@@ -35,12 +41,28 @@ items = []
 csv_file_path = get_csv_file_path()
 
 
-def filter_and_clean_data(file_path, start_date, end_date):
-    df = pd.read_csv(file_path)
+# def filter_and_clean_data(file_path, start_date, end_date):
+#     df = pd.read_csv(file_path)
+#     df['date'] = pd.to_datetime(df['date'])
+#
+#     filtered_df = df[(df['date'] >= start_date) & (df['date'] <= end_date)]
+#
+#     cleaned_df = filtered_df.dropna()
+#
+#     return cleaned_df
+
+def filter_and_clean_data(data, start_date, end_date):
+    # Check if the input is a file path or a DataFrame
+    if isinstance(data, str):
+        df = pd.read_csv(data)
+    elif isinstance(data, pd.DataFrame):
+        df = data
+    else:
+        raise TypeError("data should be a file path or a DataFrame")
+
     df['date'] = pd.to_datetime(df['date'])
 
     filtered_df = df[(df['date'] >= start_date) & (df['date'] <= end_date)]
-
     cleaned_df = filtered_df.dropna()
 
     return cleaned_df
@@ -143,7 +165,6 @@ def evaluate_rf_data():
         return jsonify({"error": str(e)}), 500
 
 
-
 @api_bp.route('/rf-feature-importances', methods=['GET'])
 def rf_feature_importances():
     try:
@@ -237,3 +258,292 @@ def get_precision_recall_curve():
         return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+# forecast?start_date=2004-01-15&end_date=2005-05-15&commodity=Wheat%20flour
+# @api_bp.route('/forecast', methods=['GET'])
+# def get_forecast():
+#     try:
+#         start_date = request.args.get('start_date')
+#         end_date = request.args.get('end_date')
+#         commodity = request.args.get('commodity')
+#
+#         if not start_date or not end_date or not commodity:
+#             return jsonify({"error": "Please provide start_date, end_date, and commodity"}), 400
+#
+#         # Load and filter data
+#         filtered_data = filter_and_clean_data(csv_file_path, start_date, end_date)
+#
+#         # Generate forecast for the specified commodity
+#         forecast = forecast_prices(filtered_data, commodity)
+#
+#         # Convert forecast to a list and return as JSON
+#         forecast_list = forecast.tolist()
+#         return jsonify({"commodity": commodity, "forecast": forecast_list})
+#     except Exception as e:
+#         return jsonify({"error": str(e)}), 500
+#
+#
+# @api_bp.route('/forecast-all-commos', methods=['GET'])
+# def get_forecast_all_commodities():
+#     try:
+#         start_date = request.args.get('start_date')
+#         end_date = request.args.get('end_date')
+#
+#         if not start_date or not end_date:
+#             return jsonify({"error": "Please provide both start_date and end_date"}), 400
+#
+#         # Load and filter data
+#         filtered_data = filter_and_clean_data(csv_file_path, start_date, end_date)
+#
+#         # Generate forecasts for all commodities
+#         forecasts = forecast_all_commodities(filtered_data)
+#
+#         # Return forecasts as JSON
+#         return jsonify({"forecasts": forecasts})
+#     except Exception as e:
+#         return jsonify({"error": str(e)}), 500
+#
+#
+# @api_bp.route('/forecast-market', methods=['GET'])
+# def get_forecast_all_markets():
+#     try:
+#         start_date = request.args.get('start_date')
+#         end_date = request.args.get('end_date')
+#
+#         if not start_date or not end_date:
+#             return jsonify({"error": "Please provide both start_date and end_date"}), 400
+#
+#         # Load and filter data
+#         filtered_data = filter_and_clean_data(csv_file_path, start_date, end_date)
+#
+#         # Generate forecasts for all commodities
+#         forecasts = forecast_all_markets(filtered_data)
+#
+#         # Return forecasts as JSON
+#         return jsonify({"forecasts": forecasts})
+#     except Exception as e:
+#         return jsonify({"error": str(e)}), 500
+#
+#
+# @api_bp.route('/forecast-category', methods=['GET'])
+# def get_forecast_all_categories():
+#     try:
+#         start_date = request.args.get('start_date')
+#         end_date = request.args.get('end_date')
+#
+#         if not start_date or not end_date:
+#             return jsonify({"error": "Please provide both start_date and end_date"}), 400
+#
+#         # Load and filter data
+#         filtered_data = filter_and_clean_data(csv_file_path, start_date, end_date)
+#
+#         # Generate forecasts for all commodities
+#         forecasts = forecast_all_categories(filtered_data)
+#
+#         # Return forecasts as JSON
+#         return jsonify({"forecasts": forecasts})
+#     except Exception as e:
+#         return jsonify({"error": str(e)}), 500
+#
+#
+# # forecast-custom?start_date=2023-01-01&end_date=2023-12-31&market=Ampara&category=cereals%20and%20tubers
+# # forecast-custom?start_date=2023-01-01&end_date=2023-12-31&market=Ampara&market=Colombo&commodity=Wheat&commodity=Rice
+# # forecast-custom?start_date=2023-01-01&end_date=2023-12-31
+# @api_bp.route('/forecast-custom', methods=['GET'])
+# def forecast_custom():
+#     try:
+#         start_date = request.args.get('start_date')
+#         end_date = request.args.get('end_date')
+#         markets = request.args.getlist('market')  # Accepts multiple markets
+#         categories = request.args.getlist('category')  # Accepts multiple categories
+#         commodities = request.args.getlist('commodity')  # Accepts multiple commodities
+#
+#         if not start_date or not end_date:
+#             return jsonify({"error": "Please provide start_date and end_date"}), 400
+#
+#         # Load and filter data
+#         filtered_data = filter_and_clean_data(csv_file_path, start_date, end_date)
+#
+#         # Apply additional filters if provided
+#         if markets:
+#             filtered_data = filtered_data[filtered_data['market'].isin(markets)]
+#         if categories:
+#             filtered_data = filtered_data[filtered_data['category'].isin(categories)]
+#         if commodities:
+#             filtered_data = filtered_data[filtered_data['commodity'].isin(commodities)]
+#
+#         # Check if any data remains after filtering
+#         if filtered_data.empty:
+#             return jsonify({"error": "No data found for the specified filters"}), 404
+#
+#         # Initialize a dictionary to store forecasts
+#         forecasts = {}
+#
+#         # Forecast for each commodity in the filtered data
+#         unique_commodities = filtered_data['commodity'].unique()
+#         for commodity in unique_commodities:
+#             commodity_data = filtered_data[filtered_data['commodity'] == commodity]
+#
+#             # Ensure 'date' column is in datetime format and set as index
+#             commodity_data['date'] = pd.to_datetime(commodity_data['date'])
+#             commodity_data = commodity_data.set_index('date')
+#
+#             # Resample to monthly data and interpolate missing values
+#             price_data = commodity_data['price'].resample('M').mean().interpolate()
+#
+#             # Fit ARIMA model
+#             model = ARIMA(price_data, order=(1, 1, 1))  # Adjust order as needed
+#             model_fit = model.fit()
+#
+#             # Forecast for the next 12 months
+#             forecast = model_fit.forecast(steps=12)
+#
+#             # Store forecast in the dictionary
+#             forecasts[commodity] = forecast.tolist()
+#
+#         return jsonify({"forecasts": forecasts})
+#     except Exception as e:
+#         return jsonify({"error": str(e)}), 500
+
+
+@api_bp.route('/forecast', methods=['GET'])
+def get_forecast():
+    try:
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        commodity = request.args.get('commodity')
+        market = request.args.get('market')
+        category = request.args.get('category')
+
+        if not start_date or not end_date:
+            return jsonify({"error": "Please provide start_date and end_date"}), 400
+
+        # Load, filter, and preprocess data
+        filtered_data = filter_and_clean_data(csv_file_path, start_date, end_date)
+        features, target = preprocess_data(filtered_data)
+        x_train, x_test, y_train, y_test = split_data(features, target)
+        model, _ = train_model(x_train, y_train)
+
+        # Generate forecast
+        forecast = forecast_prices(filtered_data, model, commodity=commodity, market=market, category=category)
+
+        return jsonify({"forecast": forecast.tolist()})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@api_bp.route('/forecast-all-commos', methods=['GET'])
+def get_forecast_all_commodities():
+    try:
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+
+        if not start_date or not end_date:
+            return jsonify({"error": "Please provide both start_date and end_date"}), 400
+
+        # Load, filter, and preprocess data
+        filtered_data = filter_and_clean_data(csv_file_path, start_date, end_date)
+        features, target = preprocess_data(filtered_data)
+        x_train, x_test, y_train, y_test = split_data(features, target)
+        model, _ = train_model(x_train, y_train)
+
+        # Generate forecasts for all commodities
+        forecasts = forecast_all_commodities(filtered_data, model)
+
+        return jsonify({"forecasts": forecasts})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@api_bp.route('/forecast-market', methods=['GET'])
+def get_forecast_all_markets():
+    try:
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+
+        if not start_date or not end_date:
+            return jsonify({"error": "Please provide both start_date and end_date"}), 400
+
+        # Load, filter, and preprocess data
+        filtered_data = filter_and_clean_data(csv_file_path, start_date, end_date)
+        features, target = preprocess_data(filtered_data)
+        x_train, x_test, y_train, y_test = split_data(features, target)
+        model, _ = train_model(x_train, y_train)
+
+        # Generate forecasts for all markets
+        forecasts = forecast_all_markets(filtered_data, model)
+
+        return jsonify({"forecasts": forecasts})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@api_bp.route('/forecast-category', methods=['GET'])
+def get_forecast_all_categories():
+    try:
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+
+        if not start_date or not end_date:
+            return jsonify({"error": "Please provide both start_date and end_date"}), 400
+
+        # Load, filter, and preprocess data
+        filtered_data = filter_and_clean_data(csv_file_path, start_date, end_date)
+        features, target = preprocess_data(filtered_data)
+        x_train, x_test, y_train, y_test = split_data(features, target)
+        model, _ = train_model(x_train, y_train)
+
+        # Generate forecasts for all categories
+        forecasts = forecast_all_categories(filtered_data, model)
+
+        return jsonify({"forecasts": forecasts})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# forecast-custom?start_date=2023-01-01&end_date=2023-12-31&market=Ampara&category=cereals%20and%20tubers
+# forecast-custom?start_date=2023-01-01&end_date=2023-12-31&market=Ampara&market=Colombo&commodity=Wheat&commodity=Rice
+# forecast-custom?start_date=2023-01-01&end_date=2023-12-31
+@api_bp.route('/forecast-custom', methods=['GET'])
+def forecast_custom():
+    try:
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        markets = request.args.getlist('market')
+        categories = request.args.getlist('category')
+        commodities = request.args.getlist('commodity')
+
+        if not start_date or not end_date:
+            return jsonify({"error": "Please provide start_date and end_date"}), 400
+
+        # Load, filter, and preprocess data
+        filtered_data = filter_and_clean_data(csv_file_path, start_date, end_date)
+        features, target = preprocess_data(filtered_data)
+        x_train, x_test, y_train, y_test = split_data(features, target)
+        model, _ = train_model(x_train, y_train)
+
+        # Apply additional filters if provided
+        if markets:
+            filtered_data = filtered_data[filtered_data['market'].isin(markets)]
+        if categories:
+            filtered_data = filtered_data[filtered_data['category'].isin(categories)]
+        if commodities:
+            filtered_data = filtered_data[filtered_data['commodity'].isin(commodities)]
+
+        if filtered_data.empty:
+            return jsonify({"error": "No data found for the specified filters"}), 404
+
+        # Generate forecasts for filtered data
+        forecasts = {}
+        unique_commodities = filtered_data['commodity'].unique()
+        for commodity in unique_commodities:
+            forecast = forecast_prices(filtered_data, model, commodity=commodity)
+            forecasts[commodity] = forecast.tolist()
+
+        return jsonify({"forecasts": forecasts})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+
