@@ -465,7 +465,6 @@ def evaluate_forecast(y_true, y_pred):
     }
 
 
-
 def main():
     # Load data
     file_path = '/Users/ilmeedesilva/Downloads/wfp_food_prices_lka.csv'
