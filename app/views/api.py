@@ -571,7 +571,7 @@ def get_forecast_svm():
         filtered_data = filter_and_clean_data(csv_file_path, start_date, end_date)
         features, target, scaler = svm_preprocess_data(filtered_data)
         x_train, x_test, y_train, y_test = svm_split_data(features, target)
-        model, _, scaler, feature_columns= svm_train_model(x_train, y_train)
+        model, _, scaler, feature_columns, training_dtypes = svm_train_model(x_train, y_train)
 
         # Generate forecast
         forecast = svm_forecast_prices(filtered_data, model, commodity=commodity, market=market, category=category)
@@ -594,7 +594,7 @@ def get_forecast_all_commodities_svm():
         filtered_data = filter_and_clean_data(csv_file_path, start_date, end_date)
         features, target, scaler = svm_preprocess_data(filtered_data)
         x_train, x_test, y_train, y_test = svm_split_data(features, target)
-        model, _, scaler, feature_columns= svm_train_model(x_train, y_train)
+        model, _, scaler, feature_columns, training_dtypes = svm_train_model(x_train, y_train)
 
         # Generate forecasts for all commodities
         forecasts = svm_forecast_all_commodities(filtered_data, model)
@@ -617,7 +617,7 @@ def get_forecast_all_markets_svm():
         filtered_data = filter_and_clean_data(csv_file_path, start_date, end_date)
         features, target, scaler = svm_preprocess_data(filtered_data)
         x_train, x_test, y_train, y_test = svm_split_data(features, target)
-        model, _, scaler, feature_columns= svm_train_model(x_train, y_train)
+        model, _, scaler, feature_columns, training_dtypes = svm_train_model(x_train, y_train)
 
         # Generate forecasts for all markets
         forecasts = svm_forecast_all_markets(filtered_data, model)
@@ -640,7 +640,7 @@ def get_forecast_all_categories_svm():
         filtered_data = filter_and_clean_data(csv_file_path, start_date, end_date)
         features, target, scaler = svm_preprocess_data(filtered_data)
         x_train, x_test, y_train, y_test = svm_split_data(features, target)
-        model, _, scaler, feature_columns= svm_train_model(x_train, y_train)
+        model, _, scaler, feature_columns, training_dtypes = svm_train_model(x_train, y_train)
 
         # Generate forecasts for all categories
         forecasts = svm_forecast_all_categories(filtered_data, model)
@@ -669,7 +669,7 @@ def forecast_custom_svm():
         filtered_data = filter_and_clean_data(csv_file_path, start_date, end_date)
         features, target, scaler = svm_preprocess_data(filtered_data)
         x_train, x_test, y_train, y_test = svm_split_data(features, target)
-        model, _, scaler, feature_columns = svm_train_model(x_train, y_train)
+        model, _, scaler, feature_columns, training_dtypes = svm_train_model(x_train, y_train)
 
         # Apply additional filters if provided
         if markets:
