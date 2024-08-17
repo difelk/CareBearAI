@@ -738,8 +738,6 @@ def forecast_prices():
     return jsonify(response)
 
 
-
-
 @api_bp.route('/modals/linear_regression', methods=['POST'])
 def linear_regression():
     params = request.json
