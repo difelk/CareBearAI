@@ -20,7 +20,8 @@ from app.ML.random_forest import (
 from app.config import get_csv_file_path
 from app.ML.linear_regression import (
     handle_linear_regression,
-    handle_linear_regression_by_date)
+    handle_linear_regression_by_date,
+    get_linear_regression)
 from app.ML.svm import (
     svm_load_data,
     svm_explore_data,
@@ -186,13 +187,13 @@ def rf_feature_importances():
         return jsonify({"error": str(e)}), 500
 
 
-@api_bp.route('/linear_regression', methods=['POST'])
-def linear_regression():
-    params = request.json
-    independent_vars = params.get('independent_vars', [])
-    dependent_var = params.get('dependent_var', '')
-    result = handle_linear_regression(csv_file_path, independent_vars, dependent_var)
-    return jsonify(result)
+# @api_bp.route('/linear_regression', methods=['POST'])
+# def linear_regression():
+#     params = request.json
+#     independent_vars = params.get('independent_vars', [])
+#     dependent_var = params.get('dependent_var', '')
+#     result = handle_linear_regression(csv_file_path, independent_vars, dependent_var)
+#     return jsonify(result)
 
 
 @api_bp.route('/linear_regression_by_date', methods=['POST'])
@@ -739,5 +740,20 @@ def forecast_prices():
 
 
 
+@api_bp.route('/modals/linear_regression', methods=['POST'])
+def linear_regression():
+    params = request.json
+
+    dataset = params.get('dataset')
+    linearXaxis = params.get('linearXaxis')
+    linearYaxis = params.get('linearYaxis')
+
+    # Validate that the required parameters are present
+    if not dataset or not linearXaxis or not linearYaxis:
+        return jsonify({'error': 'Missing required parameters.'}), 400
+
+    result = get_linear_regression(dataset, linearXaxis, linearYaxis)
+
+    return jsonify(result)
 
 
