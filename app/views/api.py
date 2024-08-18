@@ -1,3 +1,4 @@
+import numpy as np
 from flask import Blueprint, jsonify, request
 from flask_cors import CORS
 import io
@@ -23,7 +24,16 @@ from app.config import get_csv_file_path
 from app.ML.linear_regression import (
     handle_linear_regression,
     handle_linear_regression_by_date,
-    get_linear_regression)
+    get_linear_regression,
+    lr_split_data,
+    lr_train_model,
+    lr_preprocess_data,
+    lr_forecast_prices,
+    lr_load_data,
+    lr_load_model,
+    lr_explore_data,
+    lr_evaluate_model,
+    lr_save_results_to_json)
 from app.ML.svm import (
     svm_load_data,
     svm_explore_data,
@@ -56,15 +66,15 @@ def filter_data(df, markets, categories, commodities):
     if markets:
         markets = [markets] if isinstance(markets, str) else markets
         df = df[df['market'].isin(markets)]
-        print("markets exist ", df)
+        # print("markets exist ", df)
     if categories:
         categories = [categories] if isinstance(categories, str) else categories
         df = df[df['category'].isin(categories)]
-        print("categories exist ", df)
+        # print("categories exist ", df)
     if commodities:
         commodities = [commodities] if isinstance(commodities, str) else commodities
         df = df[df['commodity'].isin(commodities)]
-        print("commodities exist ", df)
+        # print("commodities exist ", df)
     return df
 
 
@@ -328,3 +338,194 @@ def forecast_prices_svm():
     }
 
     return jsonify(response)
+
+
+# VISUALIZATION FOR RISK MANAGEMENT
+
+# 1. Time Series Plot
+# Purpose:
+# To visualize how well your model's predictions match the actual prices over time.
+# Data Needed:
+# dates: The time periods corresponding to the predictions and actual values.
+# actual_prices: The true prices from your dataset.
+# predicted_prices: The values predicted by your model.
+# Steps:
+# Prepare Data:
+#
+# Ensure dates, actual_prices, and predicted_prices are in the same length and aligned correctly.
+# Create Chart:
+#
+# Plot dates on the x-axis.
+# Plot actual_prices and predicted_prices on the y-axis.
+# Chart Type:
+#
+# Line Chart.
+
+# Confidence Interval Plot
+# Purpose: To visualize the range of uncertainty around predictions.
+#
+# What You Need:
+#
+# Dates (X-axis)
+# Predicted Prices (Y-axis)
+# Lower Bound of Confidence Interval (Y-axis)
+# Upper Bound of Confidence Interval (Y-axis)
+# How to Implement:
+#
+# Create a Line Chart with Shaded Area
+# Plot the predicted prices as a line.
+# Add the confidence intervals as shaded areas around the line.
+
+@api_bp.route('/modals/linear_regression/risk_management', methods=['POST'])
+def get_risk_management():
+    try:
+        params = request.json
+        dataset = params.get('dataset')
+        df = pd.DataFrame(dataset)
+        features, target = lr_preprocess_data(df)
+        x_train, x_test, y_train, y_test = lr_split_data(features, target)
+        model = lr_train_model(x_train, y_train)
+
+        y_pred = model.predict(x_test)
+
+        return jsonify({
+            "risk_management": {
+                "dates": pd.to_datetime(df.iloc[x_test.index]['date']).tolist(),
+                "actual_prices": y_test.tolist(),
+                "predicted_prices": y_pred.tolist(),
+                "confidence_intervals": {
+                    "lower_bound": [np.percentile(y_pred, 2.5)] * len(y_pred),
+                    "upper_bound": [np.percentile(y_pred, 97.5)] * len(y_pred)
+                }
+            }
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+
+# Visualizations Breakdown
+
+# Line Chart:
+#
+# Data: forecast_dates (x-axis) and forecast_prices (y-axis). Visualization: A simple line chart showing the
+# predicted price trend over time. Implementation: Use libraries like Chart.js, D3.js, or any other charting library
+# to plot the forecast_dates and forecast_prices. Summary Panel:
+#
+# Data: insights object. Visualization: Display min_price, max_price, average_price, trend_direction,
+# and percentage_change as key metrics. Implementation: Create a summary panel or dashboard section that shows these
+# insights as text or key performance indicators (KPIs). Trend Analysis:
+#
+# Data: trend_direction and percentage_change. Visualization: Indicate whether the price is generally increasing or
+# decreasing, with an optional alert if the percentage change is significant. Implementation: Use icons (e.g.,
+# arrows) or color-coding (green for increasing, red for decreasing) to visually represent the trend. The percentage
+# change can be displayed alongside the trend direction for more context.
+@api_bp.route('/modals/linear_regression/visualization_data', methods=['POST'])
+def get_visualization_data():
+    try:
+        # Parse the incoming JSON data
+        params = request.get_json()
+        commodity = params.get('commodity')
+        market = params.get('market')
+        category = params.get('category')
+        data = pd.DataFrame(params.get('dataset'))
+
+        # Preprocess data
+        features, target = lr_preprocess_data(data)
+        x_train, x_test, y_train, y_test = lr_split_data(features, target)
+        model = lr_train_model(x_train, y_train)
+
+        # Ensure the model is a LinearRegression instance
+        if not hasattr(model, 'predict'):
+            raise ValueError("Model is not correctly initialized.")
+
+        # Generate future dates and price predictions
+        future_dates, forecasted_prices = lr_forecast_prices(data, model, commodity, market, category)
+
+        # Calculate insights
+        min_price = np.min(forecasted_prices)
+        max_price = np.max(forecasted_prices)
+        average_price = np.mean(forecasted_prices)
+        trend_direction = "increasing" if forecasted_prices[-1] > forecasted_prices[0] else "decreasing"
+        percentage_change = ((forecasted_prices[-1] - forecasted_prices[0]) / abs(forecasted_prices[0])) * 100
+
+        # Prepare the response payload
+        response_data = {
+            "forecast_dates": future_dates.tolist(),
+            "forecast_prices": forecasted_prices.tolist(),
+            "insights": {
+                "min_price": min_price,
+                "max_price": max_price,
+                "average_price": average_price,
+                "trend_direction": trend_direction,
+                "percentage_change": percentage_change,
+            }
+        }
+
+        # Return the JSON response
+        return jsonify(response_data)
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# Line Chart:
+#
+# Purpose: To show how prices evolve over time.
+# Values: forecast_dates (x-axis) vs. forecast_prices (y-axis).
+# Bar Chart:
+#
+# Purpose: To compare forecasted prices at different time points.
+# Values: Use forecast_dates as categories and forecast_prices as values.
+# Scatter Plot with Trend Line:
+#
+# Purpose: To analyze the distribution of forecasted prices and the overall trend.
+# Values: forecast_dates (x-axis) vs. forecast_prices (y-axis) with a fitted trend line.
+# Percentage Change Visualization:
+#
+# Purpose: To highlight the rate of change in prices.
+# Values: Use a text or annotation on the chart to show percentage change from the start to the end of the forecast period.
+@api_bp.route('/modals/linear_regression/price_predictions', methods=['POST'])
+def get_price_predictions():
+    try:
+        # Parse the incoming JSON data
+        params = request.get_json()
+        commodity = params.get('commodity')
+        market = params.get('market')
+        category = params.get('category')
+
+        # Ensure dataset is provided
+        dataset = params.get('dataset')
+        if dataset is None:
+            return jsonify({"error": "Dataset is required"}), 400
+
+        # Convert the dataset from list to DataFrame
+        data = pd.DataFrame(dataset)
+
+        # Ensure data is a DataFrame
+        if not isinstance(data, pd.DataFrame):
+            return jsonify({"error": "Data is not in DataFrame format"}), 500
+
+        # Preprocess data and split into train/test sets
+        features, target = lr_preprocess_data(data)
+        x_train, x_test, y_train, y_test = lr_split_data(features, target)
+
+        # Train the model
+        model = lr_train_model(x_train, y_train)
+
+        # Forecast future prices with a maximum limit on periods
+        future_dates, future_predictions = lr_forecast_prices(data, model, commodity, market, category, max_periods=120)
+
+        # Handle case where date generation fails
+        if future_dates is None:
+            return jsonify({"error": future_predictions}), 500
+
+        # Return predictions as JSON response
+        return jsonify({
+            "price_predictions": {
+                "forecast_dates": future_dates.tolist(),
+                "forecast_prices": future_predictions.tolist()
+            }
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
