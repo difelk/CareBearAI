@@ -14,8 +14,8 @@ import base64
 from scipy import stats
 from statsmodels.tsa.arima.model import ARIMA
 from datetime import datetime, timedelta
-
 from sklearn.decomposition import PCA
+
 
 # Suppress warnings
 warnings.filterwarnings('ignore')
@@ -37,6 +37,7 @@ def svm_explore_data(df):
 def svm_preprocess_data(data):
     # Identify and Handle Outliers
     # Use Z-score for identifying outliers
+    print("before preprocess data ", data)
     z_scores = np.abs(stats.zscore(data.select_dtypes(include=[np.number])))
     outliers = (z_scores > 3).any(axis=1)
     data_no_outliers = data[~outliers]
@@ -46,6 +47,7 @@ def svm_preprocess_data(data):
 
     data = data.dropna()  # Dropping rows with missing values
 
+    print("before preprocess loop")
     if 'date' in data.columns:
         data['date'] = pd.to_datetime(data['date'])
         data['year'] = data['date'].dt.year
@@ -70,19 +72,12 @@ def svm_preprocess_data(data):
     data['price_class'] = (data['price'] > median_price).astype(int)  # 0 for "low", 1 for "high"
     target = data['price_class']
     features = data.drop(columns=['price', 'price_class'])
-
+    print("after preprocess loop")
     return features, target, scaler
 
 
 def svm_split_data(features, target):
     return train_test_split(features, target, train_size=0.8, test_size=0.2, random_state=100)
-
-
-import pandas as pd
-from sklearn.decomposition import PCA
-from sklearn.preprocessing import StandardScaler
-from sklearn.svm import SVC
-from sklearn.model_selection import RandomizedSearchCV
 
 
 def svm_train_model(x_train, y_train):
@@ -111,9 +106,11 @@ def svm_train_model(x_train, y_train):
     return random_search.best_estimator_, random_search, scaler, feature_names, training_dtypes
 
 
-def svm_evaluate_model(file_path):
-    data = svm_load_data(file_path)
+def svm_evaluate_model(data):
+    # data = svm_load_data(file_path)
+    print("before preprocess")
     features, target, scaler = svm_preprocess_data(data)
+    print("after preprocess")
     x_train, x_test, y_train, y_test = svm_split_data(features, target)
     best_svc, grid_search, scaler, feature_columns, training_dtypes = svm_train_model(x_train,
                                                                                       y_train)

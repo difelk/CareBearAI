@@ -52,29 +52,19 @@ items = []
 csv_file_path = get_csv_file_path()
 
 
-def filter_and_clean_data(data, start_date, end_date):
-    if isinstance(data, str):
-        df = pd.read_csv(data)
-    elif isinstance(data, pd.DataFrame):
-        df = data
-    else:
-        raise TypeError("data should be a file path or a DataFrame")
-
-    df['date'] = pd.to_datetime(df['date'])
-
-    filtered_df = df[(df['date'] >= start_date) & (df['date'] <= end_date)]
-    cleaned_df = filtered_df.dropna()
-
-    return cleaned_df
-
-
-def filter_data(df, markets=None, categories=None, commodities=None):
+def filter_data(df, markets, categories, commodities):
     if markets:
+        markets = [markets] if isinstance(markets, str) else markets
         df = df[df['market'].isin(markets)]
+        print("markets exist ", df)
     if categories:
+        categories = [categories] if isinstance(categories, str) else categories
         df = df[df['category'].isin(categories)]
+        print("categories exist ", df)
     if commodities:
+        commodities = [commodities] if isinstance(commodities, str) else commodities
         df = df[df['commodity'].isin(commodities)]
+        print("commodities exist ", df)
     return df
 
 
@@ -157,58 +147,37 @@ def evaluate_rf_data():
         return jsonify({"error": str(e)}), 500
 
 
-# @api_bp.route('/rf-feature-importances', methods=['GET'])
-# def rf_feature_importances():
-#     try:
-#         data = load_data(csv_file_path)
-#         features, target = preprocess_data(data)
-#         x_train, x_test, y_train, y_test = split_data(features, target)
-#         best_rf, _ = train_model(x_train, y_train)
-#         result = get_feature_importances(best_rf, features)
-#         return jsonify(result)
-#     except Exception as e:
-#         return jsonify({"error": str(e)}), 500
+@api_bp.route('/modals/rf-forecast-custom', methods=['POST'])
+def forecast_custom_rf():
+    try:
+        params = request.json
+        dataset = params.get('dataset')
 
+        # Convert dataset (which is a list of dictionaries) to DataFrame
+        df = pd.DataFrame(dataset)
+        print("Initial DataFrame:\n", df)
 
-# @api_bp.route('/linear_regression', methods=['POST'])
-# def linear_regression():
-#     params = request.json
-#     independent_vars = params.get('independent_vars', [])
-#     dependent_var = params.get('dependent_var', '')
-#     result = handle_linear_regression(csv_file_path, independent_vars, dependent_var)
-#     return jsonify(result)
+        # Apply filters to the DataFrame
+        filtered_df = filter_data(df, params.get('market'), params.get('category'), params.get('commodity'))
 
+        if filtered_df.empty:
+            return jsonify({"error": "No data found for the specified filters"}), 404
 
-@api_bp.route('/linear_regression_by_date', methods=['POST'])
-def linear_regression_by_date():
-    params = request.json
-    independent_vars = params.get('independent_vars', [])
-    dependent_var = params.get('dependent_var', '')
-    start_date = params.get('start_date', '')
-    end_date = params.get('end_date', '')
+        features, target = preprocess_data(filtered_df)
+        x_train, x_test, y_train, y_test = split_data(features, target)
+        model, _ = train_model(x_train, y_train)
 
-    result = handle_linear_regression_by_date(csv_file_path, independent_vars, dependent_var, start_date, end_date)
-    return jsonify(result)
+        # Generate forecasts for filtered data
+        forecasts = {}
+        unique_commodities = filtered_df['commodity'].unique()
+        for commodity in unique_commodities:
+            forecast = forecast_prices(filtered_df, model, commodity=commodity)
+            forecasts[commodity] = forecast.tolist()
 
+        return jsonify({"forecasts": forecasts})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
-# @api_bp.route('/svm-load', methods=['GET'])
-# def load_svm_data():
-#     try:
-#         result = svm_load_data(csv_file_path)
-#         result_json = result.to_dict(orient='records')
-#         return jsonify(result_json)
-#     except Exception as e:
-#         return jsonify({"error": str(e)}), 500
-
-
-# @api_bp.route('/svm-explore', methods=['GET'])
-# def explore_svm_data():
-#     try:
-#         df = svm_load_data(csv_file_path)
-#         result = svm_explore_data(df)
-#         return jsonify(result)
-#     except Exception as e:
-#         return jsonify({"error": str(e)}), 500
 
 @api_bp.route('/modals/svm-evaluate', methods=['POST'])
 def evaluate_svm_data():
@@ -232,432 +201,31 @@ def evaluate_svm_data():
         return jsonify({"error": str(e)}), 500
 
 
-# @api_bp.route('/svm-evaluate', methods=['GET'])
-# def evaluate_svm_data():
-#     try:
-#         result = evaluate_model(csv_file_path)
-#         return jsonify(result)
-#     except Exception as e:
-#         return jsonify({"error": str(e)}), 500
-
-
-# @api_bp.route('/svm-roc', methods=['GET'])
-# def get_roc_curve():
-#     try:
-#         data = svm_load_data(csv_file_path)
-#         features, target = svm_preprocess_data(data)
-#         x_train, x_test, y_train, y_test = svm_split_data(features, target)
-#         best_svc, _ = svm_train_model(x_train, y_train)
-#
-#         y_prob = best_svc.decision_function(x_test)
-#
-#         result = svm_generate_roc_curve(y_test, y_prob)
-#         return jsonify(result)
-#     except Exception as e:
-#         return jsonify({"error": str(e)}), 500
-
-
-# @api_bp.route('/svm-precision-recall', methods=['GET'])
-# def get_precision_recall_curve():
-#     try:
-#         data = svm_load_data(csv_file_path)
-#         features, target = svm_preprocess_data(data)
-#         x_train, x_test, y_train, y_test = svm_split_data(features, target)
-#         best_svc, _ = svm_train_model(x_train, y_train)
-#
-#         y_prob = best_svc.decision_function(x_test)
-#
-#         result = svm_generate_precision_recall_curve(y_test, y_prob)
-#         return jsonify(result)
-#     except Exception as e:
-#         return jsonify({"error": str(e)}), 500
-
-# @api_bp.route('/rf-forecast', methods=['GET'])
-# def get_forecast_rf():
-#     try:
-#         start_date = request.args.get('start_date')
-#         end_date = request.args.get('end_date')
-#         commodity = request.args.get('commodity')
-#         market = request.args.get('market')
-#         category = request.args.get('category')
-#
-#         if not start_date or not end_date:
-#             return jsonify({"error": "Please provide start_date and end_date"}), 400
-#
-#         # Load, filter, and preprocess data
-#         filtered_data = filter_and_clean_data(csv_file_path, start_date, end_date)
-#
-#         features, target = preprocess_data(filtered_data)
-#         x_train, x_test, y_train, y_test = split_data(features, target)
-#         model, _ = train_model(x_train, y_train)
-#
-#         # Generate forecast
-#         forecast = forecast_prices(filtered_data, model)
-#
-#         return jsonify({"forecast": forecast.tolist()})
-#     except Exception as e:
-#         return jsonify({"error": str(e)}), 500
-
-
-@api_bp.route('/modals/rf-forecast', methods=['POST'])
-def get_forecast_rf():
-    try:
-        # start_date = request.args.get('start_date')
-        # end_date = request.args.get('end_date')
-        # commodity = request.args.get('commodity')
-        # market = request.args.get('market')
-        # category = request.args.get('category')
-
-        # if not start_date or not end_date:
-        #     return jsonify({"error": "Please provide start_date and end_date"}), 400
-
-        # Load, filter, and preprocess data
-        # filtered_data = filter_and_clean_data(csv_file_path, start_date, end_date)
-
-        params = request.json
-        df = pd.json_normalize(params)
-
-        features, target = preprocess_data(df)
-        x_train, x_test, y_train, y_test = split_data(features, target)
-        model, _ = train_model(x_train, y_train)
-
-        # Generate forecast
-        forecast = forecast_prices(df, model)
-
-        return jsonify({"forecast": forecast.tolist()})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-# @api_bp.route('/rf-forecast-all-commos', methods=['GET'])
-# def get_forecast_all_commodities_rf():
-#     try:
-#         start_date = request.args.get('start_date')
-#         end_date = request.args.get('end_date')
-#
-#         if not start_date or not end_date:
-#             return jsonify({"error": "Please provide both start_date and end_date"}), 400
-#
-#         # Load, filter, and preprocess data
-#         filtered_data = filter_and_clean_data(csv_file_path, start_date, end_date)
-#         features, target = preprocess_data(filtered_data)
-#         x_train, x_test, y_train, y_test = split_data(features, target)
-#         model, _ = train_model(x_train, y_train)
-#
-#         # Generate forecasts for all commodities
-#         forecasts = forecast_all_commodities(filtered_data, model)
-#
-#         return jsonify({"forecasts": forecasts})
-#     except Exception as e:
-#         return jsonify({"error": str(e)}), 500
-#
-#
-# @api_bp.route('/rf-forecast-market', methods=['GET'])
-# def get_forecast_all_markets_rf():
-#     try:
-#         start_date = request.args.get('start_date')
-#         end_date = request.args.get('end_date')
-#
-#         if not start_date or not end_date:
-#             return jsonify({"error": "Please provide both start_date and end_date"}), 400
-#
-#         # Load, filter, and preprocess data
-#         filtered_data = filter_and_clean_data(csv_file_path, start_date, end_date)
-#         features, target = preprocess_data(filtered_data)
-#         x_train, x_test, y_train, y_test = split_data(features, target)
-#         model, _ = train_model(x_train, y_train)
-#
-#         # Generate forecasts for all markets
-#         forecasts = forecast_all_markets(filtered_data, model)
-#
-#         return jsonify({"forecasts": forecasts})
-#     except Exception as e:
-#         return jsonify({"error": str(e)}), 500
-#
-#
-# @api_bp.route('/rf-forecast-category', methods=['GET'])
-# def get_forecast_all_categories_rf():
-#     try:
-#         start_date = request.args.get('start_date')
-#         end_date = request.args.get('end_date')
-#
-#         if not start_date or not end_date:
-#             return jsonify({"error": "Please provide both start_date and end_date"}), 400
-#
-#         # Load, filter, and preprocess data
-#         filtered_data = filter_and_clean_data(csv_file_path, start_date, end_date)
-#         features, target = preprocess_data(filtered_data)
-#         x_train, x_test, y_train, y_test = split_data(features, target)
-#         model, _ = train_model(x_train, y_train)
-#
-#         # Generate forecasts for all categories
-#         forecasts = forecast_all_categories(filtered_data, model)
-#
-#         return jsonify({"forecasts": forecasts})
-#     except Exception as e:
-#         return jsonify({"error": str(e)}), 500
-
-# @api_bp.route('/rf-forecast-custom', methods=['GET'])
-# def forecast_custom_rf():
-#     try:
-#
-#
-#         start_date = request.args.get('start_date')
-#         end_date = request.args.get('end_date')
-#         markets = request.args.get('market')
-#         categories = request.args.get('category')
-#         commodities = request.args.get('commodity')
-#
-#         if not start_date or not end_date:
-#             return jsonify({"error": "Please provide start_date and end_date"}), 400
-#
-#         # Load, filter, and preprocess data
-#         filtered_data = filter_and_clean_data(csv_file_path, start_date, end_date)
-#
-#         features, target = preprocess_data(filtered_data)
-#         x_train, x_test, y_train, y_test = split_data(features, target)
-#         model, _ = train_model(x_train, y_train)
-#
-#         # Apply additional filters if provided
-#         if markets:
-#             filtered_data = filtered_data[filtered_data['market'].isin(markets)]
-#         if categories:
-#             filtered_data = filtered_data[filtered_data['category'].isin(categories)]
-#         if filtered_data:
-#             df = filtered_data[filtered_data['commodity'].isin(commodities)]
-#
-#         if filtered_data.empty:
-#             return jsonify({"error": "No data found for the specified filters"}), 404
-#
-#         # Generate forecasts for filtered data
-#         forecasts = {}
-#         unique_commodities = filtered_data['commodity'].unique()
-#         for commodity in unique_commodities:
-#             forecast = forecast_prices(filtered_data, model, commodity=commodity)
-#             forecasts[commodity] = forecast.tolist()
-#
-#         return jsonify({"forecasts": forecasts})
-#     except Exception as e:
-#         return jsonify({"error": str(e)}), 500
-
-@api_bp.route('/modals/rf-forecast-custom', methods=['POST'])
-def forecast_custom_rf():
-    try:
-        params = request.json
-        df = pd.json_normalize(params)
-
-        # start_date = request.args.get('start_date')
-        # end_date = request.args.get('end_date')
-        # markets = params.get('market')
-        # categories = params.get('category')
-        # commodities = params.get('commodity')
-        #
-        # if not start_date or not end_date:
-        #     return jsonify({"error": "Please provide start_date and end_date"}), 400
-
-        # Load, filter, and preprocess data
-        # filtered_data = filter_and_clean_data(csv_file_path, start_date, end_date)
-        # Apply filters before preprocessing
-        df = filter_data(df, params.get('market'), params.get('category'), params.get('commodity'))
-
-        if df.empty:
-            return jsonify({"error": "No data found for the specified filters"}), 404
-
-        features, target = preprocess_data(df)
-        x_train, x_test, y_train, y_test = split_data(features, target)
-        model, _ = train_model(x_train, y_train)
-
-        # Generate forecasts for filtered data
-        forecasts = {}
-        unique_commodities = df['commodity'].unique()
-        for commodity in unique_commodities:
-            forecast = forecast_prices(df, model, commodity=commodity)
-            forecasts[commodity] = forecast.tolist()
-
-        return jsonify({"forecasts": forecasts})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-# @api_bp.route('/svm-forecast', methods=['GET'])
-# def get_forecast_svm():
-#     try:
-#         start_date = request.args.get('start_date')
-#         end_date = request.args.get('end_date')
-#         commodity = request.args.get('commodity')
-#         market = request.args.get('market')
-#         category = request.args.get('category')
-#
-#         if not start_date or not end_date:
-#             return jsonify({"error": "Please provide start_date and end_date"}), 400
-#
-#         # Load, filter, and preprocess data
-#         filtered_data = filter_and_clean_data(csv_file_path, start_date, end_date)
-#         features, target, scaler = svm_preprocess_data(filtered_data)
-#         x_train, x_test, y_train, y_test = svm_split_data(features, target)
-#         model, _, scaler, feature_columns, training_dtypes = svm_train_model(x_train, y_train)
-#
-#         # Generate forecast
-#         forecast = svm_forecast_prices(filtered_data, model, commodity=commodity, market=market, category=category)
-#
-#         return jsonify({"forecast": forecast.tolist()})
-#     except Exception as e:
-#         return jsonify({"error": str(e)}), 500
-#
-#
-# @api_bp.route('/svm-forecast-all-commos', methods=['GET'])
-# def get_forecast_all_commodities_svm():
-#     try:
-#         start_date = request.args.get('start_date')
-#         end_date = request.args.get('end_date')
-#
-#         if not start_date or not end_date:
-#             return jsonify({"error": "Please provide both start_date and end_date"}), 400
-#
-#         # Load, filter, and preprocess data
-#         filtered_data = filter_and_clean_data(csv_file_path, start_date, end_date)
-#         features, target, scaler = svm_preprocess_data(filtered_data)
-#         x_train, x_test, y_train, y_test = svm_split_data(features, target)
-#         model, _, scaler, feature_columns, training_dtypes = svm_train_model(x_train, y_train)
-#
-#         # Generate forecasts for all commodities
-#         forecasts = svm_forecast_all_commodities(filtered_data, model)
-#
-#         return jsonify({"forecasts": forecasts})
-#     except Exception as e:
-#         return jsonify({"error": str(e)}), 500
-#
-#
-# @api_bp.route('/svm-forecast-market', methods=['GET'])
-# def get_forecast_all_markets_svm():
-#     try:
-#         start_date = request.args.get('start_date')
-#         end_date = request.args.get('end_date')
-#
-#         if not start_date or not end_date:
-#             return jsonify({"error": "Please provide both start_date and end_date"}), 400
-#
-#         # Load, filter, and preprocess data
-#         filtered_data = filter_and_clean_data(csv_file_path, start_date, end_date)
-#         features, target, scaler = svm_preprocess_data(filtered_data)
-#         x_train, x_test, y_train, y_test = svm_split_data(features, target)
-#         model, _, scaler, feature_columns, training_dtypes = svm_train_model(x_train, y_train)
-#
-#         # Generate forecasts for all markets
-#         forecasts = svm_forecast_all_markets(filtered_data, model)
-#
-#         return jsonify({"forecasts": forecasts})
-#     except Exception as e:
-#         return jsonify({"error": str(e)}), 500
-#
-#
-# @api_bp.route('/svm-forecast-category', methods=['GET'])
-# def get_forecast_all_categories_svm():
-#     try:
-#         start_date = request.args.get('start_date')
-#         end_date = request.args.get('end_date')
-#
-#         if not start_date or not end_date:
-#             return jsonify({"error": "Please provide both start_date and end_date"}), 400
-#
-#         # Load, filter, and preprocess data
-#         filtered_data = filter_and_clean_data(csv_file_path, start_date, end_date)
-#         features, target, scaler = svm_preprocess_data(filtered_data)
-#         x_train, x_test, y_train, y_test = svm_split_data(features, target)
-#         model, _, scaler, feature_columns, training_dtypes = svm_train_model(x_train, y_train)
-#
-#         # Generate forecasts for all categories
-#         forecasts = svm_forecast_all_categories(filtered_data, model)
-#
-#         return jsonify({"forecasts": forecasts})
-#     except Exception as e:
-#         return jsonify({"error": str(e)}), 500
-
-# @api_bp.route('/svm-forecast-custom', methods=['GET'])
-# def forecast_custom_svm():
-#     try:
-#
-#         start_date = request.args.get('start_date')
-#         end_date = request.args.get('end_date')
-#         markets = request.args.get('market')
-#         categories = request.args.get('category')
-#         commodities = request.args.get('commodity')
-#
-#         if not start_date or not end_date:
-#             return jsonify({"error": "Please provide start_date and end_date"}), 400
-#
-#         # Load, filter, and preprocess data
-#         filtered_data = filter_and_clean_data(csv_file_path, start_date, end_date)
-#
-#         features, target = preprocess_data(filtered_data)
-#         x_train, x_test, y_train, y_test = split_data(features, target)
-#         model, _ = train_model(x_train, y_train)
-#
-#         # Apply additional filters if provided
-#         if markets:
-#             filtered_data = filtered_data[filtered_data['market'].isin(markets)]
-#         if categories:
-#             filtered_data = filtered_data[filtered_data['category'].isin(categories)]
-#         if commodities:
-#             filtered_data = filtered_data[filtered_data['commodity'].isin(commodities)]
-#
-#         if df.empty:
-#             return jsonify({"error": "No data found for the specified filters"}), 404
-#
-#         # Generate forecasts for filtered data
-#         forecasts = {}
-#         unique_commodities = filtered_data['commodity'].unique()
-#         for commodity in unique_commodities:
-#             forecast = svm_forecast_prices(filtered_data, model, commodity=commodity)
-#             forecasts[commodity] = forecast.tolist()
-#
-#         return jsonify({"forecasts": forecasts})
-#     except Exception as e:
-#         return jsonify({"error": str(e)}), 500
-
 @api_bp.route('/modals/svm-forecast-custom', methods=['POST'])
 def forecast_custom_svm():
     try:
         params = request.json
-        df = pd.json_normalize(params)
+        dataset = params.get('dataset')
 
-        # start_date = request.args.get('start_date')
-        # end_date = request.args.get('end_date')
-        # markets = params.get('market')
-        # categories = params.get('category')
-        # commodities = params.get('commodity')
-        #
-        # if not start_date or not end_date:
-        #     return jsonify({"error": "Please provide start_date and end_date"}), 400
+        # Convert dataset (which is a list of dictionaries) to DataFrame
+        df = pd.DataFrame(dataset)
+        print("Initial DataFrame:\n", df)
 
-        # Load, filter, and preprocess data
-        # filtered_data = filter_and_clean_data(csv_file_path, start_date, end_date)
+        # Apply filters to the DataFrame
+        filtered_df = filter_data(df, params.get('market'), params.get('category'), params.get('commodity'))
 
-        df = filter_data(df, params.get('market'), params.get('category'), params.get('commodity'))
-
-        if df.empty:
+        if filtered_df.empty:
             return jsonify({"error": "No data found for the specified filters"}), 404
 
-        features, target = preprocess_data(df)
-        x_train, x_test, y_train, y_test = split_data(features, target)
-        model, _ = train_model(x_train, y_train)
-
-        # Apply additional filters if provided
-        # if markets:
-        #     df = df[df['market'].isin(markets)]
-        # if categories:
-        #     df = df[df['category'].isin(categories)]
-        # if commodities:
-        #     df = df[df['commodity'].isin(commodities)]
-        #
-        # if df.empty:
-        #     return jsonify({"error": "No data found for the specified filters"}), 404
+        features, target, scaler = svm_preprocess_data(filtered_df)
+        x_train, x_test, y_train, y_test = svm_split_data(features, target)
+        model, _, scaler, feature_columns, training_dtypes = svm_train_model(x_train, y_train)
 
         # Generate forecasts for filtered data
         forecasts = {}
-        unique_commodities = df['commodity'].unique()
+        unique_commodities = filtered_df['commodity'].unique()
         for commodity in unique_commodities:
-            forecast = svm_forecast_prices(df, model, commodity=commodity)
+            forecast = svm_forecast_prices(filtered_df, model, commodity=commodity)
             forecasts[commodity] = forecast.tolist()
 
         return jsonify({"forecasts": forecasts})
@@ -718,19 +286,21 @@ def forecast_prices_svm():
     # if not start_date or not end_date:
     #     return jsonify({"error": "Please provide start_date and end_date in the query parameters."}), 400
     #
-    # # Convert dates
-    # end_date = pd.to_datetime(end_date)
-    # start_date = pd.to_datetime(start_date)
 
     # Filter and clean data
-
     params = request.json
+    dataset = params.get('dataset')
     end_date = params.get('end_date')
     start_date = params.get('start_date')
-    df = pd.json_normalize(params)
+
+    # # Convert dates
+    end_date = pd.to_datetime(end_date)
+    start_date = pd.to_datetime(start_date)
+
+    df = pd.json_normalize(dataset)
 
     # data = filter_and_clean_data(csv_file_path, start_date, end_date)
-    # data['date'] = pd.to_datetime(data['date'])
+    df['date'] = pd.to_datetime(df['date'])
 
     # Get historical averages
     historical_averages = get_historical_averages(df, end_date)
