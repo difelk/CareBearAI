@@ -449,25 +449,35 @@ def svm_forecast_price_class(model, new_data, feature_names, training_dtypes, sc
         if is_commodity_column.any():
             # Calculate the average price for the given time period
             commodity_prices = result.loc[is_commodity_column, 'avg_price']
-            avg_price_given_period = commodity_prices.mean()
 
-            overall_avg_price = overall_avg_prices[commodity_name]
+            # Check if commodity_prices is non-empty and a Series before fitting ARIMA
+            if not commodity_prices.empty:
+                if not isinstance(commodity_prices, pd.Series):
+                    commodity_prices = pd.Series(commodity_prices)
 
-            # Fit ARIMA model for the given commodity's average prices
-            arima_model = ARIMA(commodity_prices, order=(1, 1, 1))  # Adjust order as needed
-            model_fit = arima_model.fit()
+                print(f"Commodity: {commodity_name}, Commodity Prices: {commodity_prices}")
 
-            # Forecast for the next 1 month
-            forecast_prices = model_fit.forecast(steps=1)
+                # Fit ARIMA model for the given commodity's average prices
+                try:
+                    arima_model = ARIMA(commodity_prices, order=(1, 1, 1))  # Adjust order as needed
+                    model_fit = arima_model.fit()
 
-            # Determine high or low based on comparison with the average price
-            forecasted_class = ["high" if price > overall_avg_price else "low" for price in forecast_prices]
+                    # Forecast for the next 1 month
+                    forecast_prices = model_fit.forecast(steps=1)
 
-            commodity_results[commodity_name] = {
-                "forecasted_prices": forecast_prices.tolist(),
-                "forecasted_class": forecasted_class,
-                "overall_avg_price": overall_avg_price
-            }
+                    # Determine high or low based on comparison with the average price
+                    forecasted_class = ["high" if price > overall_avg_prices[commodity_name] else "low" for price in
+                                        forecast_prices]
+
+                    commodity_results[commodity_name] = {
+                        "forecasted_prices": forecast_prices.tolist(),
+                        "forecasted_class": forecasted_class,
+                        "overall_avg_price": overall_avg_prices[commodity_name]
+                    }
+                except Exception as e:
+                    print(f"Error fitting ARIMA model for commodity '{commodity_name}': {e}")
+            else:
+                print(f"No data available for commodity '{commodity_name}' to fit ARIMA model.")
 
     return commodity_results
 
