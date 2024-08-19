@@ -1,3 +1,5 @@
+import pickle
+
 import numpy as np
 from flask import Blueprint, jsonify, request
 from flask_cors import CORS
@@ -52,6 +54,10 @@ from app.ML.svm import (
     prepare_forecast_data,
 
 )
+from app.ML.cluster import (km_visualize_clusters, km_forecast_clusters, km_cluster_insights, km_evaluate_model,
+                            km_train_model, km_split_data, km_preprocess_data, km_load_data, km_explore_data,
+                            interpret_forecasted_clusters)
+
 import pandas as pd
 from statsmodels.tsa.arima.model import ARIMA
 
@@ -403,7 +409,6 @@ def get_risk_management():
         return jsonify({"error": str(e)}), 500
 
 
-
 # Visualizations Breakdown
 
 # Line Chart:
@@ -529,3 +534,172 @@ def get_price_predictions():
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@api_bp.route('/modals/k-means/km-evaluate', methods=['POST'])
+def evaluate_model():
+    try:
+        params = request.json
+        dataset = params.get('dataset')
+        if not dataset:
+            return jsonify({"error": "Dataset is required"}), 400
+
+        # Convert dataset to DataFrame
+        df = pd.DataFrame(dataset)
+
+        # Preprocess data
+        preprocessed_data = km_preprocess_data(df)
+
+        # Split data
+        x_train, x_test = km_split_data(preprocessed_data)
+
+        # Train model
+        model = km_train_model(x_train)
+
+        # Evaluate model
+        evaluation_results = km_evaluate_model(model, x_test)
+
+        return jsonify(evaluation_results)
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@api_bp.route('/modals/k-means/km-forecast', methods=['POST'])
+def forecast_clusters():
+    try:
+        params = request.json
+        dataset = params.get('dataset', [])
+        if not dataset:
+            return jsonify({"error": "Dataset is required"}), 400
+
+        df = pd.DataFrame(dataset)
+        preprocessed_data = km_preprocess_data(df)
+        x_train, _ = km_split_data(preprocessed_data)
+        model = km_train_model(x_train)
+
+        # Forecast clusters using the preprocessed data and trained model
+        forecasted_clusters = km_forecast_clusters(preprocessed_data, model)
+
+        # Interpret the forecasted clusters
+        interpretation = interpret_forecasted_clusters(forecasted_clusters)
+
+        return jsonify({
+            'forecasted_clusters': forecasted_clusters.tolist(),
+            'interpretation': interpretation
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@api_bp.route('/modals/k-means/km-visualize', methods=['POST'])
+def visualize_clusters():
+    try:
+        params = request.json
+
+        if not params:
+            return jsonify({"error": "Dataset is required"}), 400
+
+        df = pd.DataFrame(params)
+        preprocessed_data = km_preprocess_data(df)
+        x_train, _ = km_split_data(preprocessed_data)
+        model = km_train_model(x_train)
+
+        visualized_data = km_visualize_clusters(preprocessed_data, model)
+        print("visualized_data: ", visualized_data)
+        return jsonify(visualized_data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@api_bp.route('/modals/k-means/km-insights', methods=['POST'])
+def cluster_insights():
+    try:
+        params = request.json
+        dataset = params.get('dataset')
+        if not dataset:
+            return jsonify({"error": "Dataset is required"}), 400
+
+        df = pd.DataFrame(dataset)
+        preprocessed_data = km_preprocess_data(df)
+        x_train, _ = km_split_data(preprocessed_data)
+        model = km_train_model(x_train)
+
+        visualized_data = km_visualize_clusters(preprocessed_data, model)
+        insights = km_cluster_insights(visualized_data)
+        return jsonify(insights)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# 1. Visualize Cluster Characteristics
+# a. Cluster Distribution
+#
+# Chart Type: Pie Chart or Bar Chart
+# Data: Count of data points per cluster
+# Purpose: Show how data points are distributed among different clusters.
+# b. Mean and Median Prices per Cluster
+#
+# Chart Type: Bar Chart
+# Data: Mean and median prices for each cluster
+# Purpose: Compare average and median prices across clusters.
+# c. Price Range per Cluster
+#
+# Chart Type: Box Plot or Range Bar Chart
+# Data: Price range (minimum and maximum) for each cluster
+# Purpose: Display the variability of prices within each cluster.
+# 2. Visualize Commodity and Market Distribution
+# a. Commodities per Cluster
+#
+# Chart Type: Word Cloud or Bar Chart
+# Data: Most frequent commodities in each cluster
+# Purpose: Highlight the common commodities within each cluster.
+# b. Markets per Cluster
+#
+# Chart Type: Bar Chart or Map (if geographic data is available)
+# Data: Most frequent markets in each cluster
+# Purpose: Show where the data points of each cluster are concentrated geographically or by market.
+# 3. Interactive Visualizations
+# a. Scatter Plot with Clusters
+#
+# Chart Type: Scatter Plot
+# Data: Points with x and y coordinates, colored by cluster
+# Purpose: Visualize the spatial distribution of data points and how they are grouped into clusters.
+# b. Cluster Details
+#
+# Chart Type: Table or List
+# Data: Detailed list of commodities, markets, and price statistics for each cluster
+# Purpose: Provide users with a detailed view of each cluster’s composition.
+# 4. Interpretations
+# a. Cluster Distribution
+#
+# Interpretation: Explain which clusters are more populated and if any cluster has significantly fewer points. This can indicate the relative importance or rarity of certain clusters.
+# b. Mean and Median Prices
+#
+# Interpretation: Describe the pricing trends within each cluster. For example, clusters with higher mean prices might represent premium markets or commodities.
+# c. Price Range
+#
+# Interpretation: Highlight clusters with broad or narrow price ranges. A wide range could indicate variability in prices, while a narrow range might suggest a more consistent market.
+# d. Commodities and Markets
+#
+# Interpretation: Discuss the most common commodities and markets within each cluster. This can help identify what types of goods are prevalent in specific clusters and where they are most commonly sold.
+# Example Visualization Steps
+# Prepare Data for Visualization:
+#
+# Extract the necessary data from the clustering results (mean prices, median prices, price ranges, commodities, markets).
+# Select Visualization Tools:
+#
+# Use libraries like D3.js, Chart.js, or Plotly for interactive and dynamic visualizations.
+# Implement Charts:
+#
+# Create pie charts for cluster distribution.
+# Use bar charts for mean and median prices.
+# Implement box plots or range bars for price ranges.
+# Generate word clouds or bar charts for commodities.
+# Develop maps or bar charts for market distribution.
+# Add Interactivity:
+#
+# Allow users to filter by clusters and view detailed statistics.
+# Provide hover-over details for more information on each data point or cluster.
+# Present Insights:
+#
+# Include text-based explanations alongside visualizations to help users understand what the charts and plots are showing.
