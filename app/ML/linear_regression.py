@@ -304,6 +304,64 @@ def get_linear_regression(dataset, linearXaxis, linearYaxis):
 
     return response
 
+# def get_linear_regression(dataset, linearXaxis, linearYaxis):
+#     # Convert dataset to DataFrame
+#     df = pd.DataFrame(dataset)
+#
+#     # Ensure linearXaxis and linearYaxis are lists
+#     if not isinstance(linearXaxis, list):
+#         linearXaxis = [linearXaxis]
+#     if not isinstance(linearYaxis, list):
+#         linearYaxis = [linearYaxis]
+#
+#     # Validate that linearXaxis and linearYaxis are present in the dataset
+#     for col in linearXaxis:
+#         if col not in df.columns:
+#             return jsonify({'error': f"Column '{col}' not found in dataset."}), 400
+#     for col in linearYaxis:
+#         if col not in df.columns:
+#             return jsonify({'error': f"Column '{col}' not found in dataset."}), 400
+#
+#     # Prepare data for regression
+#     X = df[linearXaxis]
+#
+#     # Initialize a dictionary to store results for each dependent variable
+#     results = {}
+#
+#     for y_col in linearYaxis:
+#         # Handle categorical target variables
+#         if df[y_col].dtype == 'object':
+#             encoder = LabelEncoder()
+#             df[y_col] = encoder.fit_transform(df[y_col])
+#
+#         y = df[y_col]
+#
+#         # Initialize and fit the model
+#         model = LinearRegression()
+#         model.fit(X, y)
+#
+#         # Make predictions
+#         predictions = model.predict(X)
+#
+#         # Calculate metrics
+#         mse = mean_squared_error(y, predictions)
+#         r2 = r2_score(y, predictions)
+#         coefficients = model.coef_.tolist()
+#         intercept = model.intercept_
+#
+#         # Store the results for the current dependent variable
+#         results[y_col] = {
+#             'actuals': y.tolist(),
+#             'predictions': predictions.tolist(),
+#             'mean_squared_error': mse,
+#             'r2_score': r2,
+#             'coefficients': coefficients,
+#             'intercept': intercept
+#         }
+#
+#     return results
+
+
 
 # Example usage for handling linear regression and forecasting:
 file_path = '/Users/ilmeedesilva/Downloads/wfp_food_prices_lka.csv'

@@ -134,6 +134,37 @@ def get_feature_importances(best_rf, features):
     }
 
 
+# def forecast_prices(data, model, commodity=None, market=None, category=None):
+#     # Filter data for the specified commodity, market, and category
+#     if commodity:
+#         data = data[data['commodity'] == commodity]
+#     if market:
+#         data = data[data['market'] == market]
+#     if category:
+#         data = data[data['category'] == category]
+#
+#     if 'date' in data.columns:
+#         data['date'] = pd.to_datetime(data['date'])
+#         data = data.set_index('date')
+#
+#     # Resample to monthly data and interpolate missing values
+#     if 'price' not in data.columns or data.empty:
+#         raise ValueError("No 'price' column or empty data after filtering.")
+#
+#     price_data = data['price'].resample('M').mean().interpolate()
+#
+#     if price_data.empty:
+#         raise ValueError("No data available for forecasting after resampling.")
+#
+#     # Fit ARIMA model
+#     arima_model = ARIMA(price_data, order=(1, 1, 1))  # Adjust order as needed
+#     model_fit = arima_model.fit()
+#
+#     # Forecast for the next 12 months
+#     forecast = model_fit.forecast(steps=12)
+#
+#     return forecast
+
 def forecast_prices(data, model, commodity=None, market=None, category=None):
     # Filter data for the specified commodity, market, and category
     if commodity:
@@ -163,7 +194,14 @@ def forecast_prices(data, model, commodity=None, market=None, category=None):
     # Forecast for the next 12 months
     forecast = model_fit.forecast(steps=12)
 
-    return forecast
+    # Create a DataFrame with forecasted dates and prices
+    forecast_dates = pd.date_range(start=price_data.index[-1] + pd.DateOffset(months=1), periods=12, freq='M')
+    forecast_df = pd.DataFrame({
+        'date': forecast_dates,
+        'price': forecast
+    }).set_index('date')
+
+    return forecast_df
 
 
 def forecast_all_commodities(data, model):

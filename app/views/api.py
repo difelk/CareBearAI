@@ -140,6 +140,22 @@ def linear_regression():
 
     return jsonify(result)
 
+# @api_bp.route('/modals/linear_regression', methods=['POST'])
+# def linear_regression():
+#     # Extract data from the request
+#     data = request.json.get('dataset')
+#     linearXaxis = request.json.get('linearXaxis')
+#     linearYaxis = request.json.get('linearYaxis')
+#
+#     # Call the get_linear_regression function with the provided data
+#     if not data or not linearXaxis or not linearYaxis:
+#         return jsonify({'error': 'Invalid input data'}), 400
+#
+#     results = get_linear_regression(data, linearXaxis, linearYaxis)
+#
+#     # Return the results as a JSON response
+#     return jsonify(results), 200
+
 
 @api_bp.route('/modals/rf-evaluate', methods=['POST'])
 def evaluate_rf_data():
@@ -163,6 +179,37 @@ def evaluate_rf_data():
         return jsonify({"error": str(e)}), 500
 
 
+# @api_bp.route('/modals/rf-forecast-custom', methods=['POST'])
+# def forecast_custom_rf():
+#     try:
+#         params = request.json
+#         dataset = params.get('dataset')
+#
+#         # Convert dataset (which is a list of dictionaries) to DataFrame
+#         df = pd.DataFrame(dataset)
+#         print("Initial DataFrame:\n", df)
+#
+#         # Apply filters to the DataFrame
+#         filtered_df = filter_data(df, params.get('market'), params.get('category'), params.get('commodity'))
+#
+#         if filtered_df.empty:
+#             return jsonify({"error": "No data found for the specified filters"}), 404
+#
+#         features, target = preprocess_data(filtered_df)
+#         x_train, x_test, y_train, y_test = split_data(features, target)
+#         model, _ = train_model(x_train, y_train)
+#
+#         # Generate forecasts for filtered data
+#         forecasts = {}
+#         unique_commodities = filtered_df['commodity'].unique()
+#         for commodity in unique_commodities:
+#             forecast = forecast_prices(filtered_df, model, commodity=commodity)
+#             forecasts[commodity] = forecast.tolist()
+#
+#         return jsonify({"forecasts": forecasts})
+#     except Exception as e:
+#         return jsonify({"error": str(e)}), 500
+
 @api_bp.route('/modals/rf-forecast-custom', methods=['POST'])
 def forecast_custom_rf():
     try:
@@ -171,7 +218,7 @@ def forecast_custom_rf():
 
         # Convert dataset (which is a list of dictionaries) to DataFrame
         df = pd.DataFrame(dataset)
-        print("Initial DataFrame:\n", df)
+        # print("Initial DataFrame:\n", df)
 
         # Apply filters to the DataFrame
         filtered_df = filter_data(df, params.get('market'), params.get('category'), params.get('commodity'))
@@ -187,12 +234,14 @@ def forecast_custom_rf():
         forecasts = {}
         unique_commodities = filtered_df['commodity'].unique()
         for commodity in unique_commodities:
-            forecast = forecast_prices(filtered_df, model, commodity=commodity)
-            forecasts[commodity] = forecast.tolist()
+            forecast_df = forecast_prices(filtered_df, model, commodity=commodity)
+            forecasts[commodity] = forecast_df.reset_index().to_dict(orient='records')
 
         return jsonify({"forecasts": forecasts})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
 
 
 @api_bp.route('/modals/svm-evaluate', methods=['POST'])
