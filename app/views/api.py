@@ -140,6 +140,7 @@ def linear_regression():
 
     return jsonify(result)
 
+
 # @api_bp.route('/modals/linear_regression', methods=['POST'])
 # def linear_regression():
 #     # Extract data from the request
@@ -240,8 +241,6 @@ def forecast_custom_rf():
         return jsonify({"forecasts": forecasts})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-
 
 
 @api_bp.route('/modals/svm-evaluate', methods=['POST'])
@@ -586,7 +585,7 @@ def get_price_predictions():
 
 
 @api_bp.route('/modals/k-means/km-evaluate', methods=['POST'])
-def evaluate_model():
+def evaluate_model_km():
     try:
         params = request.json
         dataset = params.get('dataset')
