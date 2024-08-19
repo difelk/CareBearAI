@@ -59,6 +59,7 @@ from app.ML.cluster import (km_visualize_clusters, km_forecast_clusters, km_clus
                             interpret_forecasted_clusters)
 
 import pandas as pd
+from datetime import datetime, timedelta
 from statsmodels.tsa.arima.model import ARIMA
 
 api_bp = Blueprint('api', __name__)
@@ -297,7 +298,6 @@ def forecast_custom_svm():
         return jsonify({"error": str(e)}), 500
 
 
-
 # @api_bp.route('/forecast-high-low', methods=['GET'])
 # def forecast_prices_svm():
 #     start_date = request.args.get('start_date')
@@ -345,26 +345,39 @@ def forecast_custom_svm():
 
 @api_bp.route('/modals/forecast-high-low', methods=['POST'])
 def forecast_prices_svm():
-    # start_date = request.args.get('start_date')
-    # end_date = request.args.get('end_date')
-    #
-    # if not start_date or not end_date:
-    #     return jsonify({"error": "Please provide start_date and end_date in the query parameters."}), 400
-    #
-
-    # Filter and clean data
+    # Get parameters from request JSON
     params = request.json
     dataset = params.get('dataset')
-    end_date = params.get('end_date')
-    start_date = params.get('start_date')
+    end_date_str = params.get('end_date')
+    start_date_str = params.get('start_date')
 
-    # # Convert dates
-    end_date = pd.to_datetime(end_date)
-    start_date = pd.to_datetime(start_date)
+    # Check if the required parameters are provided
+    if not end_date_str or not start_date_str:
+        return jsonify({"error": "Please provide start_date and end_date in the request body."}), 400
 
+    # Convert dates from string to datetime
+    try:
+        end_date = pd.to_datetime(end_date_str)
+        start_date = pd.to_datetime(start_date_str)
+    except Exception as e:
+        return jsonify({"error": "Invalid date format. Ensure dates are in the correct format."}), 400
+
+    # Ensure end_date is not None and assign default if necessary
+    if end_date is None:
+        end_date = datetime.now()
+
+    # Calculate the start date based on end date and months (assuming months is a parameter or constant)
+    months = 1  # Set this according to your application logic
+    start_date = end_date - timedelta(days=30 * months)
+
+    # Convert dataset to DataFrame
     df = pd.json_normalize(dataset)
 
-    # data = filter_and_clean_data(csv_file_path, start_date, end_date)
+    # Check if 'date' column exists
+    if 'date' not in df.columns:
+        return jsonify({"error": "Dataset must contain a 'date' column."}), 400
+
+    # Ensure 'date' column is in datetime format
     df['date'] = pd.to_datetime(df['date'])
 
     # Get historical averages
@@ -387,8 +400,8 @@ def forecast_prices_svm():
     forecasted_classes = svm_forecast_price_class(model, filtered_data, feature_columns, training_dtypes, scaler)
 
     response = {
-        "start_date": start_date,
-        "end_date": end_date,
+        "start_date": start_date.isoformat(),
+        "end_date": end_date.isoformat(),
         "forecasts": forecasted_classes
     }
 
