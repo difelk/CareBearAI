@@ -11,6 +11,7 @@ import json
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.metrics import silhouette_samples
+from app.config import get_csv_file_path
 
 # Suppress warnings
 warnings.filterwarnings('ignore')
@@ -251,7 +252,7 @@ def interpret_forecasted_clusters(forecasted_clusters):
 
 
 # Example usage
-file_path = '/Users/ilmeedesilva/Downloads/wfp_food_prices_lka.csv'
+file_path = get_csv_file_path()
 data = km_load_data(file_path)
 explored_data = km_explore_data(data)
 preprocessed_data = km_preprocess_data(data)
