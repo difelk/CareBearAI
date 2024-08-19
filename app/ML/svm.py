@@ -191,9 +191,26 @@ def svm_forecast_prices(data, model, commodity=None, market=None, category=None)
     model_fit = arima_model.fit()
 
     # Forecast for the next 12 months
-    forecast = model_fit.forecast(steps=12)
+    forecast_steps = 12
+    forecast = model_fit.get_forecast(steps=forecast_steps)
+    forecast_mean = forecast.predicted_mean
 
-    return forecast
+    print("Type of forecast_mean:", type(forecast_mean))
+    print("Shape of forecast_mean:", forecast_mean.shape if hasattr(forecast_mean, 'shape') else 'No shape attribute')
+    print("Forecast Mean Output:", forecast_mean)
+
+    # Generate forecast dates
+    forecast_dates = pd.date_range(start=price_data.index[-1] + pd.DateOffset(months=1), periods=forecast_steps, freq='M')
+
+    # Return forecasted dates and prices
+    forecast_df = pd.DataFrame({
+        'date': forecast_dates,
+        'forecasted_price': forecast_mean
+    })
+
+    return forecast_df
+
+
 
 
 def svm_forecast_all_commodities(data, model):

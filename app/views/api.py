@@ -289,12 +289,13 @@ def forecast_custom_svm():
         forecasts = {}
         unique_commodities = filtered_df['commodity'].unique()
         for commodity in unique_commodities:
-            forecast = svm_forecast_prices(filtered_df, model, commodity=commodity)
-            forecasts[commodity] = forecast.tolist()
+            forecast_df = svm_forecast_prices(filtered_df, model, commodity=commodity)
+            forecasts[commodity] = forecast_df.to_dict(orient='records')
 
         return jsonify({"forecasts": forecasts})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 
 # @api_bp.route('/forecast-high-low', methods=['GET'])
