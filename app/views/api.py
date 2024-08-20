@@ -220,7 +220,7 @@ def forecast_custom_rf():
 
         # Convert dataset (which is a list of dictionaries) to DataFrame
         df = pd.DataFrame(dataset)
-        # print("Initial DataFrame:\n", df)
+        print("Initial DataFrame:\n", df)
 
         # Apply filters to the DataFrame
         filtered_df = filter_data(df, params.get('market'), params.get('category'), params.get('commodity'))
@@ -236,7 +236,7 @@ def forecast_custom_rf():
         forecasts = {}
         unique_commodities = filtered_df['commodity'].unique()
         for commodity in unique_commodities:
-            forecast_df = forecast_prices(filtered_df, model, commodity=commodity)
+            forecast_df = forecast_prices(filtered_df, commodity=commodity, market=None, category=None)
             forecasts[commodity] = forecast_df.reset_index().to_dict(orient='records')
 
         return jsonify({"forecasts": forecasts})

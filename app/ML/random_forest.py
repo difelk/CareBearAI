@@ -11,6 +11,7 @@ from sklearn.metrics import accuracy_score, classification_report, confusion_mat
     mean_squared_error, r2_score
 from scipy import stats
 from statsmodels.tsa.arima.model import ARIMA
+from statsmodels.tsa.holtwinters import ExponentialSmoothing
 
 # Suppress warnings
 warnings.filterwarnings('ignore')
@@ -68,6 +69,7 @@ def preprocess_data(data):
     features = data.drop(columns=['price', 'price_class'])
 
     return features, target
+
 
 
 def split_data(features, target):
@@ -165,7 +167,7 @@ def get_feature_importances(best_rf, features):
 #
 #     return forecast
 
-def forecast_prices(data, model, commodity=None, market=None, category=None):
+def forecast_prices(data, commodity=None, market=None, category=None):
     # Filter data for the specified commodity, market, and category
     if commodity:
         data = data[data['commodity'] == commodity]
@@ -178,30 +180,63 @@ def forecast_prices(data, model, commodity=None, market=None, category=None):
         data['date'] = pd.to_datetime(data['date'])
         data = data.set_index('date')
 
-    # Resample to monthly data and interpolate missing values
+    # Check if 'price' column exists and is not empty
     if 'price' not in data.columns or data.empty:
         raise ValueError("No 'price' column or empty data after filtering.")
 
+    # Resample to monthly data and interpolate missing values
     price_data = data['price'].resample('M').mean().interpolate()
 
     if price_data.empty:
         raise ValueError("No data available for forecasting after resampling.")
 
-    # Fit ARIMA model
-    arima_model = ARIMA(price_data, order=(1, 1, 1))  # Adjust order as needed
-    model_fit = arima_model.fit()
+    # Handle insufficient data
+    if len(price_data) < 10:  # Adjust the threshold as necessary
+        print("Insufficient data for ARIMA and Exponential Smoothing models. Using Naive Forecast instead.")
+        forecast_value = price_data.iloc[-1]  # Use the last observed value
+        forecast_dates = pd.date_range(start=price_data.index[-1] + pd.DateOffset(months=1), periods=12, freq='M')
+        forecast_values = [forecast_value] * len(forecast_dates)
+    else:
+        # Fit ARIMA model
+        try:
+            arima_model = ARIMA(price_data, order=(1, 1, 1))  # Adjust order as needed
+            model_fit = arima_model.fit()
+            forecast = model_fit.forecast(steps=12)
+        except Exception as e:
+            raise RuntimeError(f"Error fitting ARIMA model: {e}")
 
-    # Forecast for the next 12 months
-    forecast = model_fit.forecast(steps=12)
+        # Ensure forecast is a 1D array or Series
+        if isinstance(forecast, pd.Series):
+            forecast_values = forecast.values
+        elif isinstance(forecast, np.ndarray):
+            forecast_values = forecast.ravel()  # Use ravel to flatten if needed
+        elif isinstance(forecast, list):
+            forecast_values = np.array(forecast).ravel()
+        else:
+            raise ValueError("Unexpected type for forecast.")
 
-    # Create a DataFrame with forecasted dates and prices
-    forecast_dates = pd.date_range(start=price_data.index[-1] + pd.DateOffset(months=1), periods=12, freq='M')
+        # Convert forecast to a DataFrame
+        forecast_dates = pd.date_range(start=price_data.index[-1] + pd.DateOffset(months=1), periods=12, freq='M')
+
+        # Ensure forecast_values has the expected length
+        if len(forecast_values) != len(forecast_dates):
+            raise ValueError(f"Forecast values length {len(forecast_values)} does not match forecast dates length {len(forecast_dates)}.")
+
     forecast_df = pd.DataFrame({
         'date': forecast_dates,
-        'price': forecast
+        'price': forecast_values
     }).set_index('date')
 
     return forecast_df
+
+
+
+
+
+
+
+
+
 
 
 def forecast_all_commodities(data, model):
