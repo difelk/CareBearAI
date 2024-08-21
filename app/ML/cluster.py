@@ -72,30 +72,72 @@ def km_train_model(x_train, num_clusters=3):
 
 
 def km_evaluate_model(model, x_test):
+    # Predict clusters for the test data
     labels = model.predict(x_test)
+
+    # Compute silhouette score
     score = silhouette_score(x_test, labels)
     sample_silhouette_values = silhouette_samples(x_test, labels)
 
     # Calculate cluster sizes
     unique_labels, counts = np.unique(labels, return_counts=True)
-    cluster_sizes = dict(zip(map(str, unique_labels), map(int, counts)))  # Convert counts to int
+    cluster_sizes = dict(zip(map(str, unique_labels), map(int, counts)))
+
+    # Create a dictionary for clusters
+    clusters = {str(label): np.where(labels == label)[0].tolist() for label in unique_labels}
+
+    # Prepare feature values for each cluster using reconstructed 'commodity' and 'price'
+    cluster_features = {}
+    scatter_plot_data = {}
+
+    if isinstance(x_test, pd.DataFrame):
+        # Identify one-hot encoded columns for commodities
+        commodity_columns = [col for col in x_test.columns if col.startswith('commodity_')]
+
+        for label, indices in clusters.items():
+            try:
+                # Reconstruct commodities for each data point in the cluster
+                reconstructed_commodities = [
+                    [commodity.replace('commodity_', '') for commodity in commodity_columns if row[commodity] == 1]
+                    for _, row in x_test.iloc[indices].iterrows()
+                ]
+
+                # Extract the price column
+                prices = x_test.iloc[indices]['price'].values
+
+                # Combine reconstructed commodities and prices
+                cluster_features[label] = list(zip(reconstructed_commodities, prices))
+
+                # Prepare data for scatter plot
+                scatter_plot_data[label] = {
+                    "x": [" & ".join(commodity_list) for commodity_list in reconstructed_commodities],
+                    # combined 'commodity' labels
+                    "y": prices.tolist()  # 'price'
+                }
+            except KeyError as e:
+                print(f"KeyError while accessing DataFrame: {e}")
+                print(f"Indices: {indices}")
+    else:
+        raise TypeError("x_test must be a DataFrame to access columns by name")
 
     # Sample silhouette values summary
     silhouette_values_summary = {
-        "min": float(np.min(sample_silhouette_values)),  # Convert to float
-        "max": float(np.max(sample_silhouette_values)),  # Convert to float
-        "mean": float(np.mean(sample_silhouette_values)),  # Convert to float
-        "std": float(np.std(sample_silhouette_values))  # Convert to float
+        "min": float(np.min(sample_silhouette_values)),
+        "max": float(np.max(sample_silhouette_values)),
+        "mean": float(np.mean(sample_silhouette_values)),
+        "std": float(np.std(sample_silhouette_values))
     }
 
     # Interpretation
     interpretation = {
-        "silhouette_score": float(score),  # Convert to float
+        "silhouette_score": float(score),
         "silhouette_score_interpretation": "",
         "cluster_sizes": cluster_sizes,
         "cluster_sizes_interpretation": "",
         "sample_silhouette_values_summary": silhouette_values_summary,
-        "sample_silhouette_values_interpretation": ""
+        "sample_silhouette_values_interpretation": "",
+        "clusters": clusters,
+        "cluster_features": cluster_features
     }
 
     # Silhouette score interpretation
@@ -138,7 +180,10 @@ def km_evaluate_model(model, x_test):
         interpretation[
             "sample_silhouette_values_interpretation"] = "Clustering has significant variability in silhouette values, indicating inconsistency in clustering quality. Further investigation or adjustments might be needed."
 
-    return interpretation
+    return {
+        "interpretation": interpretation,
+        "scatter_plot_data": scatter_plot_data
+    }
 
 
 def km_forecast_clusters(data, model):
