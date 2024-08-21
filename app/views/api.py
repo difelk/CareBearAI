@@ -668,8 +668,11 @@ def visualize_clusters():
         model = km_train_model(x_train)
 
         visualized_data = km_visualize_clusters(preprocessed_data, model)
-        print("visualized_data: ", visualized_data)
-        return jsonify(visualized_data)
+
+        # Convert the DataFrame to a dictionary (or list of dictionaries)
+        visualized_data_dict = visualized_data.to_dict(orient='records')
+
+        return jsonify(visualized_data_dict)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -678,9 +681,21 @@ def visualize_clusters():
 def cluster_insights():
     try:
         params = request.json
-        dataset = params.get('dataset')
+
+        # If params is a list, assume it's the dataset directly
+        if isinstance(params, list):
+            dataset = params
+        elif isinstance(params, dict):
+            dataset = params.get('dataset')
+        else:
+            return jsonify({"error": "Invalid data format. Expected a dictionary or list."}), 400
+
         if not dataset:
             return jsonify({"error": "Dataset is required"}), 400
+
+        # Check if the dataset is a list
+        if not isinstance(dataset, list):
+            return jsonify({"error": "Invalid dataset format. Expected a list of records."}), 400
 
         df = pd.DataFrame(dataset)
         preprocessed_data = km_preprocess_data(df)
