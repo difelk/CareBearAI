@@ -1,3 +1,4 @@
+import os
 import warnings
 import pandas as pd
 import numpy as np
@@ -15,7 +16,6 @@ from scipy import stats
 from statsmodels.tsa.arima.model import ARIMA
 from datetime import datetime, timedelta
 from sklearn.decomposition import PCA
-
 
 # Suppress warnings
 warnings.filterwarnings('ignore')
@@ -200,7 +200,8 @@ def svm_forecast_prices(data, model, commodity=None, market=None, category=None)
     print("Forecast Mean Output:", forecast_mean)
 
     # Generate forecast dates
-    forecast_dates = pd.date_range(start=price_data.index[-1] + pd.DateOffset(months=1), periods=forecast_steps, freq='M')
+    forecast_dates = pd.date_range(start=price_data.index[-1] + pd.DateOffset(months=1), periods=forecast_steps,
+                                   freq='M')
 
     # Return forecasted dates and prices
     forecast_df = pd.DataFrame({
@@ -209,8 +210,6 @@ def svm_forecast_prices(data, model, commodity=None, market=None, category=None)
     })
 
     return forecast_df
-
-
 
 
 def svm_forecast_all_commodities(data, model):
@@ -270,7 +269,6 @@ def prepare_forecast_data(data, historical_averages):
 
 # Forecast price classification (high or low)
 from statsmodels.tsa.arima.model import ARIMA
-
 
 # def svm_forecast_price_class(model, new_data, feature_names, training_dtypes, start_date, end_date, scaler=None):
 #     # Process date if it exists in the new_data
@@ -482,18 +480,32 @@ def svm_forecast_price_class(model, new_data, feature_names, training_dtypes, sc
     return commodity_results
 
 
+def save_plot(fig, plot_name):
+    # Define static directory
+    static_dir = '/Users/ilmeedesilva/Desktop/ML Ass 4/careBareAI/CareBearAI/app/static'
+
+    # Ensure the directory exists
+    if not os.path.exists(static_dir):
+        os.makedirs(static_dir)
+
+    # Save the figure
+    plot_path = os.path.join(static_dir, f'{plot_name}.png')
+    fig.savefig(plot_path)
+    plt.close(fig)
+    return plot_path
+
+
 def svm_create_plots(features, target, best_svc, evaluation_results):
+    # Define static directory
+    static_dir = '/Users/ilmeedesilva/Desktop/ML Ass 4/careBareAI/CareBearAI/app/static'
+
+    # Ensure the directory exists
+    if not os.path.exists(static_dir):
+        os.makedirs(static_dir)
+
     plot_paths = {}
 
-    def save_plot(fig, title):
-        img = io.BytesIO()
-        fig.savefig(img, format='png')
-        plt.close(fig)
-        img.seek(0)
-        return base64.b64encode(img.getvalue()).decode('utf-8')
-
-        # Outlier Identification for Plotting
-
+    # Outlier Identification for Plotting
     numerical_data = features.select_dtypes(include=[np.number])
     z_scores = np.abs(stats.zscore(numerical_data))
     outliers = (z_scores > 3).any(axis=1)
@@ -501,18 +513,14 @@ def svm_create_plots(features, target, best_svc, evaluation_results):
     features_with_outliers['outlier'] = outliers
 
     # Plot: Outliers
-    plt.figure(figsize=(14, 8))
-    scatter = plt.scatter(features_with_outliers['latitude'], features_with_outliers['longitude'],
-                          c=features_with_outliers['outlier'], cmap='coolwarm', alpha=0.7)
-    plt.xlabel('Latitude', fontsize=14)
-    plt.ylabel('Longitude', fontsize=14)
-    plt.title('Outliers Visualization', fontsize=16)
-    plt.colorbar(scatter, label='Outlier')
-    plt.tight_layout()
-    outliers_plot_path = '/Users/ilmeedesilva/Desktop/ML Ass 4/outliers_plot.png'
-    plt.savefig(outliers_plot_path)
-    plt.close()
-    plot_paths['outliers_plot'] = outliers_plot_path
+    fig, ax = plt.subplots(figsize=(14, 8))
+    scatter = ax.scatter(features_with_outliers['latitude'], features_with_outliers['longitude'],
+                         c=features_with_outliers['outlier'], cmap='coolwarm', alpha=0.7)
+    ax.set_xlabel('Latitude', fontsize=14)
+    ax.set_ylabel('Longitude', fontsize=14)
+    ax.set_title('Outliers Visualization', fontsize=16)
+    fig.colorbar(scatter, ax=ax, label='Outlier')
+    plot_paths['outliers_plot'] = save_plot(fig, 'Outliers Visualization')
 
     # Plot: Confusion Matrix Heatmap
     conf_matrix = np.array(evaluation_results['confusion_matrix'])
@@ -576,3 +584,30 @@ def svm_create_plots(features, target, best_svc, evaluation_results):
     plot_paths['feature_distribution'] = save_plot(fig, 'Feature Distribution')
 
     return plot_paths
+
+
+# Example usage
+def main():
+    # Load data
+    file_path = '/Users/ilmeedesilva/Downloads/wfp_food_prices_lka.csv'
+    data = svm_load_data(file_path)
+
+    # Data preprocessing
+    features, target, scaler = svm_preprocess_data(data)
+
+    # Split data
+    x_train, x_test, y_train, y_test = svm_split_data(features, target)
+
+    # Train model
+    best_svc, grid_search, scaler, feature_columns, training_dtypes = svm_train_model(x_train, y_train)
+
+    # Evaluate model
+    evaluation_results = svm_evaluate_model(data)
+
+    # Create plots
+    plot_paths = svm_create_plots(features, target, best_svc, evaluation_results)
+    print(f"Plots saved: {plot_paths}")
+
+
+if __name__ == "__main__":
+    main()
