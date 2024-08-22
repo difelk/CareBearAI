@@ -9,6 +9,7 @@ from flask import Response, request, jsonify
 from app.services.csv_service import insert_csv_data
 from app.ML.cluster import handle_clustering
 from app.services.csvhandler import extract_header, get_all_csv_data
+from sklearn.linear_model import LinearRegression
 from app.ML.random_forest import (
     load_data,
     explore_data,
@@ -596,6 +597,79 @@ def get_price_predictions():
             }
         })
     except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
+@api_bp.route('/modals/predictions/linear_regression/price_predictions', methods=['POST'])
+def get_linear_price_predictions():
+    try:
+        params = request.get_json()
+        commodity = params.get('commodity')
+        market = params.get('market')
+        category = params.get('category')
+
+        dataset = params.get('dataset')
+        if dataset is None:
+            return jsonify({"error": "Dataset is required"}), 400
+
+        data = pd.DataFrame(dataset)
+        logging.debug(f"Initial Data: {data.head()}")
+
+        if not any([commodity, market, category]):
+            return jsonify({"error": "At least one filter parameter (commodity, market, or category) is required"}), 400
+
+        if commodity:
+            data = data[data['commodity'].isin(commodity)]
+        if market:
+            data = data[data['market'].isin(market)]
+        if category:
+            data = data[data['category'].isin(category)]
+
+        logging.debug(f"Filtered Data: {data.head()}")
+
+        if data.empty:
+            return jsonify({"error": "No data available for the provided filters"}), 404
+
+        data['date'] = pd.to_datetime(data['date'])
+        data = data.sort_values('date')
+
+        results = {}
+        for group_name in (commodity or market or category):
+            group_data = data[data['category'] == group_name] if category else (
+                data[data['commodity'] == group_name] if commodity else
+                data[data['market'] == group_name]
+            )
+
+            logging.debug(f"Group Data for {group_name}: {group_data.head()}")
+
+            if group_data.empty:
+                continue  # Skip if no data available for this group
+
+            X = group_data['date'].map(pd.Timestamp.toordinal).values.reshape(-1, 1)
+            y = group_data['price'].values
+
+            model = LinearRegression()
+            model.fit(X, y)
+
+            last_date = group_data['date'].max()
+            next_dates = [last_date + pd.DateOffset(months=i) for i in range(1, 7)]
+            next_dates_ordinal = np.array([date.toordinal() for date in next_dates]).reshape(-1, 1)
+
+            predictions = model.predict(next_dates_ordinal)
+
+            results[group_name] = []
+            for date, price in zip(next_dates, predictions):
+                results[group_name].append({
+                    "date": date.strftime('%Y-%m'),
+                    "predicted_price": price
+                })
+
+        return jsonify(results)
+
+    except Exception as e:
+        logging.error(f"Error: {e}")
         return jsonify({"error": str(e)}), 500
 
 
