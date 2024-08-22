@@ -109,7 +109,7 @@ def evaluate_model(df):
     y_pred = best_rf.predict(x_test)
 
     # Evaluation metrics
-    return {
+    evaluation_results = {
         "accuracy": accuracy_score(y_test, y_pred),
         "classification_report": classification_report(y_test, y_pred, output_dict=True),
         "confusion_matrix": confusion_matrix(y_test, y_pred).tolist(),
@@ -118,11 +118,20 @@ def evaluate_model(df):
         "r2_score": r2_score(y_test, y_pred),
         "y_test": y_test.tolist(),
         "y_pred": y_pred.tolist(),
-        "cv_scores": cross_val_score(best_rf, x_test, y_test, cv=5).tolist(),
         "grid_search_results": pd.DataFrame(grid_search.cv_results_).sort_values(by='mean_test_score',
                                                                                  ascending=False).to_dict(
             orient='records')
     }
+
+    # Check if cross-validation is feasible
+    if len(x_test) >= 5:  # Ensure we have at least 5 samples
+        evaluation_results["cv_scores"] = cross_val_score(best_rf, x_test, y_test, cv=5).tolist()
+    else:
+        evaluation_results["cv_scores"] = "Cross-validation cannot be performed due to insufficient data."
+
+    return evaluation_results
+
+
 
 
 def get_feature_importances(best_rf, features):
