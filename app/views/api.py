@@ -1,7 +1,8 @@
+import os
 import pickle
 
 import numpy as np
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, send_from_directory, send_file
 from flask_cors import CORS
 import io
 from flask import Response, request, jsonify
@@ -708,6 +709,7 @@ def cluster_insights():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
 # 1. Visualize Cluster Characteristics
 # a. Cluster Distribution
 #
@@ -780,3 +782,34 @@ def cluster_insights():
 # Present Insights:
 #
 # Include text-based explanations alongside visualizations to help users understand what the charts and plots are showing.
+
+
+STATIC_DIR = '/Users/ilmeedesilva/Desktop/ML Ass 4/careBareAI/CareBearAI/app/static'
+
+
+@api_bp.route('/modals/rf/plots', methods=['GET'])
+def get_plots():
+    plot_files = [
+        'outliers_plot.png',
+        'top_feature_importances.png',
+        'actual_vs_predicted.png',
+        'residuals_vs_predicted.png',
+        'residual_histogram.png',
+        'cv_score_distribution.png',
+    ]
+    plot_urls = {plot_file: f'/static/{plot_file}' for plot_file in plot_files}
+    return jsonify(plot_urls)
+
+
+# @api_bp.route('/static/<path:filename>', methods=['GET'])
+# def serve_static(filename):
+#     return send_from_directory(STATIC_DIR, filename)
+
+
+@api_bp.route('/plot/<plot_name>')
+def serve_plot(plot_name):
+    plot_path = f'/Users/ilmeedesilva/Desktop/ML Ass 4/careBareAI/CareBearAI/app/static/{plot_name}'
+    if os.path.exists(plot_path):
+        return send_file(plot_path)
+    else:
+        os.abort(404)

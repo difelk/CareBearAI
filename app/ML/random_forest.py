@@ -12,6 +12,8 @@ from sklearn.metrics import accuracy_score, classification_report, confusion_mat
 from scipy import stats
 from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.tsa.holtwinters import ExponentialSmoothing
+import os
+
 
 # Suppress warnings
 warnings.filterwarnings('ignore')
@@ -109,7 +111,7 @@ def evaluate_model(df):
     y_pred = best_rf.predict(x_test)
 
     # Evaluation metrics
-    return {
+    evaluation_results = {
         "accuracy": accuracy_score(y_test, y_pred),
         "classification_report": classification_report(y_test, y_pred, output_dict=True),
         "confusion_matrix": confusion_matrix(y_test, y_pred).tolist(),
@@ -118,11 +120,20 @@ def evaluate_model(df):
         "r2_score": r2_score(y_test, y_pred),
         "y_test": y_test.tolist(),
         "y_pred": y_pred.tolist(),
-        "cv_scores": cross_val_score(best_rf, x_test, y_test, cv=5).tolist(),
         "grid_search_results": pd.DataFrame(grid_search.cv_results_).sort_values(by='mean_test_score',
                                                                                  ascending=False).to_dict(
             orient='records')
     }
+
+    # Check if cross-validation is feasible
+    if len(x_test) >= 5:  # Ensure we have at least 5 samples
+        evaluation_results["cv_scores"] = cross_val_score(best_rf, x_test, y_test, cv=5).tolist()
+    else:
+        evaluation_results["cv_scores"] = "Cross-validation cannot be performed due to insufficient data."
+
+    return evaluation_results
+
+
 
 
 def get_feature_importances(best_rf, features):
@@ -270,135 +281,145 @@ def forecast_all_categories(data, model):
 
 
 def create_plots(features, target, best_rf, evaluation_results):
+    # Define the static directory
+    static_dir = '/Users/ilmeedesilva/Desktop/ML Ass 4/careBareAI/CareBearAI/app/static'
+
+    # Ensure the directory exists
+    if not os.path.exists(static_dir):
+        os.makedirs(static_dir)
+
     plot_paths = {}
 
-    # Outlier Identification for Plotting
-    numerical_data = features.select_dtypes(include=[np.number])
-    z_scores = np.abs(stats.zscore(numerical_data))
-    outliers = (z_scores > 3).any(axis=1)
-    features_with_outliers = features.copy()
-    features_with_outliers['outlier'] = outliers
+    try:
+        # Outlier Identification for Plotting
+        numerical_data = features.select_dtypes(include=[np.number])
+        z_scores = np.abs(stats.zscore(numerical_data))
+        outliers = (z_scores > 3).any(axis=1)
+        features_with_outliers = features.copy()
+        features_with_outliers['outlier'] = outliers
 
-    # Plot: Outliers
-    plt.figure(figsize=(14, 8))
-    scatter = plt.scatter(features_with_outliers['latitude'], features_with_outliers['longitude'],
-                          c=features_with_outliers['outlier'], cmap='coolwarm', alpha=0.7)
-    plt.xlabel('Latitude', fontsize=14)
-    plt.ylabel('Longitude', fontsize=14)
-    plt.title('Outliers Visualization', fontsize=16)
-    plt.colorbar(scatter, label='Outlier')
-    plt.tight_layout()
-    outliers_plot_path = '/Users/ilmeedesilva/Desktop/ML Ass 4/outliers_plot.png'
-    plt.savefig(outliers_plot_path)
-    plt.close()
-    plot_paths['outliers_plot'] = outliers_plot_path
+        # Plot: Outliers
+        plt.figure(figsize=(14, 8))
+        scatter = plt.scatter(features_with_outliers['latitude'], features_with_outliers['longitude'],
+                              c=features_with_outliers['outlier'], cmap='coolwarm', alpha=0.7)
+        plt.xlabel('Latitude', fontsize=14)
+        plt.ylabel('Longitude', fontsize=14)
+        plt.title('Outliers Visualization', fontsize=16)
+        plt.colorbar(scatter, label='Outlier')
+        plt.tight_layout()
+        outliers_plot_path = os.path.join(static_dir, 'outliers_plot.png')
+        plt.savefig(outliers_plot_path)
+        plt.close()
+        plot_paths['outliers_plot'] = outliers_plot_path
 
-    # Plot: Top Feature Importances
-    importances = best_rf.feature_importances_
-    indices = np.argsort(importances)[::-1]
-    top_n = 10
-    top_indices = indices[:top_n]
-    top_importances = importances[top_indices]
-    top_feature_names = features.columns[top_indices]
+        # Plot: Top Feature Importances
+        importances = best_rf.feature_importances_
+        indices = np.argsort(importances)[::-1]
+        top_n = 10
+        top_indices = indices[:top_n]
+        top_importances = importances[top_indices]
+        top_feature_names = features.columns[top_indices]
 
-    plt.figure(figsize=(14, 8))
-    plt.title("Top Feature Importances", fontsize=16)
-    plt.bar(range(top_n), top_importances, align="center")
-    plt.xticks(range(top_n), top_feature_names, rotation=90, fontsize=8)
-    plt.xlim([-1, top_n])
-    plt.xlabel('Features', fontsize=14)
-    plt.ylabel('Importance', fontsize=14)
-    plt.tight_layout()
-    top_feature_importances_path = '/Users/ilmeedesilva/Desktop/ML Ass 4/top_feature_importances.png'
-    plt.savefig(top_feature_importances_path)
-    plt.close()
-    plot_paths['top_feature_importances'] = top_feature_importances_path
+        plt.figure(figsize=(14, 8))
+        plt.title("Top Feature Importances", fontsize=16)
+        plt.bar(range(top_n), top_importances, align="center")
+        plt.xticks(range(top_n), top_feature_names, rotation=90, fontsize=8)
+        plt.xlim([-1, top_n])
+        plt.xlabel('Features', fontsize=14)
+        plt.ylabel('Importance', fontsize=14)
+        plt.tight_layout()
+        top_feature_importances_path = os.path.join(static_dir, 'top_feature_importances.png')
+        plt.savefig(top_feature_importances_path)
+        plt.close()
+        plot_paths['top_feature_importances'] = top_feature_importances_path
 
-    # Plot: Actual vs. Predicted Prices
-    y_test = evaluation_results.get('y_test')
-    y_pred = evaluation_results.get('y_pred')
+        # Plot: Actual vs. Predicted Prices
+        y_test = evaluation_results.get('y_test')
+        y_pred = evaluation_results.get('y_pred')
 
-    plt.figure(figsize=(12, 8))
-    plt.scatter(y_test, y_pred, alpha=0.5, edgecolor='k')
-    plt.plot([min(y_test), max(y_test)], [min(y_pred), max(y_pred)], 'k--', lw=2)
-    plt.xlabel('Actual Prices', fontsize=14)
-    plt.ylabel('Predicted Prices', fontsize=14)
-    plt.title('Actual vs Predicted Prices', fontsize=16)
-    plt.tight_layout()
-    actual_vs_predicted_path = '/Users/ilmeedesilva/Desktop/ML Ass 4/actual_vs_predicted.png'
-    plt.savefig(actual_vs_predicted_path)
-    plt.close()
-    plot_paths['actual_vs_predicted'] = actual_vs_predicted_path
+        plt.figure(figsize=(12, 8))
+        plt.scatter(y_test, y_pred, alpha=0.5, edgecolor='k')
+        plt.plot([min(y_test), max(y_test)], [min(y_pred), max(y_pred)], 'k--', lw=2)
+        plt.xlabel('Actual Prices', fontsize=14)
+        plt.ylabel('Predicted Prices', fontsize=14)
+        plt.title('Actual vs Predicted Prices', fontsize=16)
+        plt.tight_layout()
+        actual_vs_predicted_path = os.path.join(static_dir, 'actual_vs_predicted.png')
+        plt.savefig(actual_vs_predicted_path)
+        plt.close()
+        plot_paths['actual_vs_predicted'] = actual_vs_predicted_path
 
-    # Plot: Residuals vs Predicted Prices
-    residuals = np.array(y_test) - np.array(y_pred)
+        # Plot: Residuals vs Predicted Prices
+        residuals = np.array(y_test) - np.array(y_pred)
 
-    plt.figure(figsize=(12, 8))
-    plt.scatter(y_pred, residuals, alpha=0.5, edgecolor='k')
-    plt.hlines(0, xmin=min(y_pred), xmax=max(y_pred), colors='r', linestyles='--')
-    plt.xlabel('Predicted Prices', fontsize=14)
-    plt.ylabel('Residuals', fontsize=14)
-    plt.title('Residuals vs Predicted Prices', fontsize=16)
-    plt.tight_layout()
-    residuals_vs_predicted_path = '/Users/ilmeedesilva/Desktop/ML Ass 4/residuals_vs_predicted.png'
-    plt.savefig(residuals_vs_predicted_path)
-    plt.close()
-    plot_paths['residuals_vs_predicted'] = residuals_vs_predicted_path
+        plt.figure(figsize=(12, 8))
+        plt.scatter(y_pred, residuals, alpha=0.5, edgecolor='k')
+        plt.hlines(0, xmin=min(y_pred), xmax=max(y_pred), colors='r', linestyles='--')
+        plt.xlabel('Predicted Prices', fontsize=14)
+        plt.ylabel('Residuals', fontsize=14)
+        plt.title('Residuals vs Predicted Prices', fontsize=16)
+        plt.tight_layout()
+        residuals_vs_predicted_path = os.path.join(static_dir, 'residuals_vs_predicted.png')
+        plt.savefig(residuals_vs_predicted_path)
+        plt.close()
+        plot_paths['residuals_vs_predicted'] = residuals_vs_predicted_path
 
-    # Plot: Residual Histogram
-    plt.figure(figsize=(12, 8))
-    plt.hist(residuals, bins=30, edgecolor='k', alpha=0.7)
-    plt.xlabel('Residual', fontsize=14)
-    plt.ylabel('Frequency', fontsize=14)
-    plt.title('Distribution of Residuals', fontsize=16)
-    plt.tight_layout()
-    residual_histogram_path = '/Users/ilmeedesilva/Desktop/ML Ass 4/residual_histogram.png'
-    plt.savefig(residual_histogram_path)
-    plt.close()
-    plot_paths['residual_histogram'] = residual_histogram_path
+        # Plot: Residual Histogram
+        plt.figure(figsize=(12, 8))
+        plt.hist(residuals, bins=30, edgecolor='k', alpha=0.7)
+        plt.xlabel('Residual', fontsize=14)
+        plt.ylabel('Frequency', fontsize=14)
+        plt.title('Distribution of Residuals', fontsize=16)
+        plt.tight_layout()
+        residual_histogram_path = os.path.join(static_dir, 'residual_histogram.png')
+        plt.savefig(residual_histogram_path)
+        plt.close()
+        plot_paths['residual_histogram'] = residual_histogram_path
 
-    # Plot: Cross-Validation Score Distribution
-    cv_scores = evaluation_results.get('cv_scores')
+        # Plot: Cross-Validation Score Distribution
+        cv_scores = evaluation_results.get('cv_scores')
 
-    plt.figure(figsize=(12, 8))
-    plt.boxplot(cv_scores, vert=False)
-    plt.xlabel('Cross-Validation Score', fontsize=14)
-    plt.title('Cross-Validation Score Distribution', fontsize=16)
-    plt.tight_layout()
-    cv_score_distribution_path = '/Users/ilmeedesilva/Desktop/ML Ass 4/cv_score_distribution.png'
-    plt.savefig(cv_score_distribution_path)
-    plt.close()
-    plot_paths['cv_score_distribution'] = cv_score_distribution_path
+        plt.figure(figsize=(12, 8))
+        plt.boxplot(cv_scores, vert=False)
+        plt.xlabel('Cross-Validation Score', fontsize=14)
+        plt.title('Cross-Validation Score Distribution', fontsize=16)
+        plt.tight_layout()
+        cv_score_distribution_path = os.path.join(static_dir, 'cv_score_distribution.png')
+        plt.savefig(cv_score_distribution_path)
+        plt.close()
+        plot_paths['cv_score_distribution'] = cv_score_distribution_path
 
-    # Plot: Grid Search Results
-    results = evaluation_results.get('grid_search_results')
+        # Plot: Grid Search Results
+        results = evaluation_results.get('grid_search_results')
 
-    plt.figure(figsize=(14, 8))
-    sns.lineplot(data=results, x='param_n_estimators', y='mean_test_score', hue='param_max_depth', marker='o')
-    plt.xlabel('Number of Estimators', fontsize=14)
-    plt.ylabel('Mean Test Score', fontsize=14)
-    plt.title('Grid Search Results', fontsize=16)
-    plt.legend(title='Max Depth', title_fontsize='13', fontsize='12')
-    plt.tight_layout()
-    grid_search_results_path = '/Users/ilmeedesilva/Desktop/ML Ass 4/grid_search_results.png'
-    plt.savefig(grid_search_results_path)
-    plt.close()
-    plot_paths['grid_search_results'] = grid_search_results_path
+        plt.figure(figsize=(14, 8))
+        sns.lineplot(data=results, x='param_n_estimators', y='mean_test_score', hue='param_max_depth', marker='o')
+        plt.xlabel('Number of Estimators', fontsize=14)
+        plt.ylabel('Mean Test Score', fontsize=14)
+        plt.title('Grid Search Results', fontsize=16)
+        plt.legend(title='Max Depth', title_fontsize='13', fontsize='12')
+        plt.tight_layout()
+        grid_search_results_path = os.path.join(static_dir, 'grid_search_results.png')
+        plt.savefig(grid_search_results_path)
+        plt.close()
+        plot_paths['grid_search_results'] = grid_search_results_path
 
-    # Plot: Filtered Feature Correlation Heatmap
-    threshold = 0.5
-    corr_matrix = features.corr()
-    plt.figure(figsize=(14, 10))
-    sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', center=0, vmin=-1, vmax=1)
-    plt.title('Feature Correlation Heatmap', fontsize=16)
-    plt.tight_layout()
-    feature_correlation_heatmap_path = '/Users/ilmeedesilva/Desktop/ML Ass 4/feature_correlation_heatmap.png'
-    plt.savefig(feature_correlation_heatmap_path)
-    plt.close()
-    plot_paths['feature_correlation_heatmap'] = feature_correlation_heatmap_path
+        # Plot: Filtered Feature Correlation Heatmap
+        threshold = 0.5
+        corr_matrix = features.corr()
+        plt.figure(figsize=(14, 10))
+        sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', center=0, vmin=-1, vmax=1)
+        plt.title('Feature Correlation Heatmap', fontsize=16)
+        plt.tight_layout()
+        feature_correlation_heatmap_path = os.path.join(static_dir, 'feature_correlation_heatmap.png')
+        plt.savefig(feature_correlation_heatmap_path)
+        plt.close()
+        plot_paths['feature_correlation_heatmap'] = feature_correlation_heatmap_path
+
+    except Exception as e:
+        print(f"An error occurred while creating plots: {e}")
 
     return plot_paths
-
 
 def evaluate_forecast(y_true, y_pred):
     # Ensure y_true and y_pred are aligned and not empty
@@ -448,13 +469,16 @@ def main():
     print(feature_importances)
 
     # Create plots
-    plot_paths = create_plots(features, target, best_rf, evaluation_results)
-    print(plot_paths)
+    # plot_paths = create_plots(features, target, best_rf, evaluation_results)
+    # print(plot_paths)
+
+    plots = create_plots(features, target, best_rf, evaluation_results)
+    print(f"Plots saved: {plots}")
 
     return {
         "exploration_results": exploration_results,
         "evaluation_results": evaluation_results,
-        "plot_paths": plot_paths
+        "plot_paths":plots
     }
 
 
