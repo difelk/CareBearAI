@@ -76,15 +76,12 @@ def filter_data(df, markets, categories, commodities):
     if markets:
         markets = [markets] if isinstance(markets, str) else markets
         df = df[df['market'].isin(markets)]
-        # print("markets exist ", df)
     if categories:
         categories = [categories] if isinstance(categories, str) else categories
         df = df[df['category'].isin(categories)]
-        # print("categories exist ", df)
     if commodities:
         commodities = [commodities] if isinstance(commodities, str) else commodities
         df = df[df['commodity'].isin(commodities)]
-        # print("commodities exist ", df)
     return df
 
 
@@ -171,7 +168,6 @@ def forecast_custom_rf():
         dataset = params.get('dataset')
 
         df = pd.DataFrame(dataset)
-        print("Initial DataFrame:\n", df)
 
         filtered_df = filter_data(df, params.get('market'), params.get('category'), params.get('commodity'))
 
@@ -220,7 +216,6 @@ def forecast_custom_svm():
         dataset = params.get('dataset')
 
         df = pd.DataFrame(dataset)
-        print("Initial DataFrame:\n", df)
 
         filtered_df = filter_data(df, params.get('market'), params.get('category'), params.get('commodity'))
 
@@ -642,7 +637,48 @@ def cluster_insights():
         return jsonify({"error": str(e)}), 500
 
 
-STATIC_DIR = '/Users/ilmeedesilva/Desktop/ML Ass 4/careBareAI/CareBearAI/app/static'
+@api_bp.route('/modals/k-means/cluster-markets', methods=['POST'])
+def cluster_markets():
+    try:
+        data = request.json
+
+        if 'dataset' not in data:
+            return jsonify({"error": "No dataset provided"}), 400
+
+        df = pd.DataFrame(data['dataset'])
+
+        if not {'latitude', 'longitude'}.issubset(df.columns):
+            return jsonify({"error": "Missing required columns"}), 400
+
+        # Drop rows with missing values in 'latitude' or 'longitude'
+        df = df.dropna(subset=['latitude', 'longitude'])
+
+        # Extract Latitude and Longitude for clustering
+        X = df[['latitude', 'longitude']]
+
+        # Perform K-Means Clustering
+        k = data.get('k', 5)  # Default to 5 clusters if not specified
+        kmeans = KMeans(n_clusters=k, random_state=42)
+        df['Cluster'] = kmeans.fit_predict(X)
+
+        # Prepare the response data
+        clusters = []
+        for _, row in df.iterrows():
+            clusters.append({
+                "latitude": row['latitude'],
+                "longitude": row['longitude'],
+                "cluster": int(row['Cluster'])
+            })
+
+        centroids = [{"latitude": float(lat), "longitude": float(lon), "cluster": int(i)}
+                     for i, (lat, lon) in enumerate(kmeans.cluster_centers_)]
+
+        return jsonify({"clusters": clusters, "centroids": centroids})
+
+    except Exception as e:
+        # Log the error
+        print(f"Error occurred: {str(e)}")
+        return jsonify({"error": "Internal Server Error", "message": str(e)}), 500
 
 
 @api_bp.route('/modals/rf/plots', methods=['GET'])
