@@ -136,7 +136,6 @@ def linear_regression():
     linearXaxis = params.get('linearXaxis')
     linearYaxis = params.get('linearYaxis')
 
-    # Validate that the required parameters are present
     if not dataset or not linearXaxis or not linearYaxis:
         return jsonify({'error': 'Missing required parameters.'}), 400
 
@@ -145,75 +144,25 @@ def linear_regression():
     return jsonify(result)
 
 
-# @api_bp.route('/modals/linear_regression', methods=['POST'])
-# def linear_regression():
-#     # Extract data from the request
-#     data = request.json.get('dataset')
-#     linearXaxis = request.json.get('linearXaxis')
-#     linearYaxis = request.json.get('linearYaxis')
-#
-#     # Call the get_linear_regression function with the provided data
-#     if not data or not linearXaxis or not linearYaxis:
-#         return jsonify({'error': 'Invalid input data'}), 400
-#
-#     results = get_linear_regression(data, linearXaxis, linearYaxis)
-#
-#     # Return the results as a JSON response
-#     return jsonify(results), 200
-
-
 @api_bp.route('/modals/rf-evaluate', methods=['POST'])
 def evaluate_rf_data():
     try:
-        # Read JSON data and convert it to a DataFrame
+
         params = request.json
         df = pd.json_normalize(params)
 
-        # Process the DataFrame with the evaluate_model function
         results = evaluate_model(df)
 
-        # Check if the results are in dictionary form and convert to DataFrame if needed
         if isinstance(results, dict):
-            # Directly return the dictionary as JSON
+
             return jsonify(results)
         else:
-            # Assuming results are in list of dicts format
-            return jsonify(results)  # Convert list of dicts to JSON
+
+            return jsonify(results)
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
-# @api_bp.route('/modals/rf-forecast-custom', methods=['POST'])
-# def forecast_custom_rf():
-#     try:
-#         params = request.json
-#         dataset = params.get('dataset')
-#
-#         # Convert dataset (which is a list of dictionaries) to DataFrame
-#         df = pd.DataFrame(dataset)
-#         print("Initial DataFrame:\n", df)
-#
-#         # Apply filters to the DataFrame
-#         filtered_df = filter_data(df, params.get('market'), params.get('category'), params.get('commodity'))
-#
-#         if filtered_df.empty:
-#             return jsonify({"error": "No data found for the specified filters"}), 404
-#
-#         features, target = preprocess_data(filtered_df)
-#         x_train, x_test, y_train, y_test = split_data(features, target)
-#         model, _ = train_model(x_train, y_train)
-#
-#         # Generate forecasts for filtered data
-#         forecasts = {}
-#         unique_commodities = filtered_df['commodity'].unique()
-#         for commodity in unique_commodities:
-#             forecast = forecast_prices(filtered_df, model, commodity=commodity)
-#             forecasts[commodity] = forecast.tolist()
-#
-#         return jsonify({"forecasts": forecasts})
-#     except Exception as e:
-#         return jsonify({"error": str(e)}), 500
 
 @api_bp.route('/modals/rf-forecast-custom', methods=['POST'])
 def forecast_custom_rf():
@@ -221,11 +170,9 @@ def forecast_custom_rf():
         params = request.json
         dataset = params.get('dataset')
 
-        # Convert dataset (which is a list of dictionaries) to DataFrame
         df = pd.DataFrame(dataset)
         print("Initial DataFrame:\n", df)
 
-        # Apply filters to the DataFrame
         filtered_df = filter_data(df, params.get('market'), params.get('category'), params.get('commodity'))
 
         if filtered_df.empty:
@@ -235,7 +182,6 @@ def forecast_custom_rf():
         x_train, x_test, y_train, y_test = split_data(features, target)
         model, _ = train_model(x_train, y_train)
 
-        # Generate forecasts for filtered data
         forecasts = {}
         unique_commodities = filtered_df['commodity'].unique()
         for commodity in unique_commodities:
@@ -250,20 +196,18 @@ def forecast_custom_rf():
 @api_bp.route('/modals/svm-evaluate', methods=['POST'])
 def evaluate_svm_data():
     try:
-        # Read JSON data and convert it to a DataFrame
+
         params = request.json
         df = pd.json_normalize(params)
 
-        # Process the DataFrame with the evaluate_model function
         results = svm_evaluate_model(df)
 
-        # Check if the results are in dictionary form and convert to DataFrame if needed
         if isinstance(results, dict):
-            # Directly return the dictionary as JSON
+
             return jsonify(results)
         else:
-            # Assuming results are in list of dicts format
-            return jsonify(results)  # Convert list of dicts to JSON
+
+            return jsonify(results)
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -275,11 +219,9 @@ def forecast_custom_svm():
         params = request.json
         dataset = params.get('dataset')
 
-        # Convert dataset (which is a list of dictionaries) to DataFrame
         df = pd.DataFrame(dataset)
         print("Initial DataFrame:\n", df)
 
-        # Apply filters to the DataFrame
         filtered_df = filter_data(df, params.get('market'), params.get('category'), params.get('commodity'))
 
         if filtered_df.empty:
@@ -289,7 +231,6 @@ def forecast_custom_svm():
         x_train, x_test, y_train, y_test = svm_split_data(features, target)
         model, _, scaler, feature_columns, training_dtypes = svm_train_model(x_train, y_train)
 
-        # Generate forecasts for filtered data
         forecasts = {}
         unique_commodities = filtered_df['commodity'].unique()
         for commodity in unique_commodities:
@@ -301,105 +242,47 @@ def forecast_custom_svm():
         return jsonify({"error": str(e)}), 500
 
 
-# @api_bp.route('/forecast-high-low', methods=['GET'])
-# def forecast_prices_svm():
-#     start_date = request.args.get('start_date')
-#     end_date = request.args.get('end_date')
-#
-#     if not start_date or not end_date:
-#         return jsonify({"error": "Please provide start_date and end_date in the query parameters."}), 400
-#
-#     # Convert dates
-#     end_date = pd.to_datetime(end_date)
-#     start_date = pd.to_datetime(start_date)
-#
-#     # Filter and clean data
-#
-#     data = filter_and_clean_data(csv_file_path, start_date, end_date)
-#     data['date'] = pd.to_datetime(data['date'])
-#
-#     # Get historical averages
-#     historical_averages = get_historical_averages(data, end_date)
-#
-#     # Prepare forecast data with historical averages
-#     filtered_data = prepare_forecast_data(data, historical_averages)
-#
-#     # Preprocess the data
-#     features, target, scaler = svm_preprocess_data(filtered_data)
-#     x_train, x_test, y_train, y_test = svm_split_data(features, target)
-#
-#     # Train the model
-#     model, _, scaler, feature_columns, training_dtypes = svm_train_model(x_train, y_train)
-#
-#     if model is None:
-#         return jsonify({"error": "Model is not trained yet."}), 500
-#
-#     # Forecast the prices
-#     forecasted_classes = svm_forecast_price_class(model, filtered_data, feature_columns, training_dtypes, scaler)
-#
-#     response = {
-#         "start_date": start_date,
-#         "end_date": end_date,
-#         "forecasts": forecasted_classes
-#     }
-#
-#     return jsonify(response)
-
-
 @api_bp.route('/modals/forecast-high-low', methods=['POST'])
 def forecast_prices_svm():
-    # Get parameters from request JSON
     params = request.json
     dataset = params.get('dataset')
     end_date_str = params.get('end_date')
     start_date_str = params.get('start_date')
 
-    # Check if the required parameters are provided
     if not end_date_str or not start_date_str:
         return jsonify({"error": "Please provide start_date and end_date in the request body."}), 400
 
-    # Convert dates from string to datetime
     try:
         end_date = pd.to_datetime(end_date_str)
         start_date = pd.to_datetime(start_date_str)
     except Exception as e:
         return jsonify({"error": "Invalid date format. Ensure dates are in the correct format."}), 400
 
-    # Ensure end_date is not None and assign default if necessary
     if end_date is None:
         end_date = datetime.now()
 
-    # Calculate the start date based on end date and months (assuming months is a parameter or constant)
-    months = 1  # Set this according to your application logic
+    months = 1
     start_date = end_date - timedelta(days=30 * months)
 
-    # Convert dataset to DataFrame
     df = pd.json_normalize(dataset)
 
-    # Check if 'date' column exists
     if 'date' not in df.columns:
         return jsonify({"error": "Dataset must contain a 'date' column."}), 400
 
-    # Ensure 'date' column is in datetime format
     df['date'] = pd.to_datetime(df['date'])
 
-    # Get historical averages
     historical_averages = get_historical_averages(df, end_date)
 
-    # Prepare forecast data with historical averages
     filtered_data = prepare_forecast_data(df, historical_averages)
 
-    # Preprocess the data
     features, target, scaler = svm_preprocess_data(filtered_data)
     x_train, x_test, y_train, y_test = svm_split_data(features, target)
 
-    # Train the model
     model, _, scaler, feature_columns, training_dtypes = svm_train_model(x_train, y_train)
 
     if model is None:
         return jsonify({"error": "Model is not trained yet."}), 500
 
-    # Forecast the prices
     forecasted_classes = svm_forecast_price_class(model, filtered_data, feature_columns, training_dtypes, scaler)
 
     response = {
@@ -410,42 +293,6 @@ def forecast_prices_svm():
 
     return jsonify(response)
 
-
-# VISUALIZATION FOR RISK MANAGEMENT
-
-# 1. Time Series Plot
-# Purpose:
-# To visualize how well your model's predictions match the actual prices over time.
-# Data Needed:
-# dates: The time periods corresponding to the predictions and actual values.
-# actual_prices: The true prices from your dataset.
-# predicted_prices: The values predicted by your model.
-# Steps:
-# Prepare Data:
-#
-# Ensure dates, actual_prices, and predicted_prices are in the same length and aligned correctly.
-# Create Chart:
-#
-# Plot dates on the x-axis.
-# Plot actual_prices and predicted_prices on the y-axis.
-# Chart Type:
-#
-# Line Chart.
-
-# Confidence Interval Plot
-# Purpose: To visualize the range of uncertainty around predictions.
-#
-# What You Need:
-#
-# Dates (X-axis)
-# Predicted Prices (Y-axis)
-# Lower Bound of Confidence Interval (Y-axis)
-# Upper Bound of Confidence Interval (Y-axis)
-# How to Implement:
-#
-# Create a Line Chart with Shaded Area
-# Plot the predicted prices as a line.
-# Add the confidence intervals as shaded areas around the line.
 
 @api_bp.route('/modals/linear_regression/risk_management', methods=['POST'])
 def get_risk_management():
@@ -474,52 +321,31 @@ def get_risk_management():
         return jsonify({"error": str(e)}), 500
 
 
-# Visualizations Breakdown
-
-# Line Chart:
-#
-# Data: forecast_dates (x-axis) and forecast_prices (y-axis). Visualization: A simple line chart showing the
-# predicted price trend over time. Implementation: Use libraries like Chart.js, D3.js, or any other charting library
-# to plot the forecast_dates and forecast_prices. Summary Panel:
-#
-# Data: insights object. Visualization: Display min_price, max_price, average_price, trend_direction,
-# and percentage_change as key metrics. Implementation: Create a summary panel or dashboard section that shows these
-# insights as text or key performance indicators (KPIs). Trend Analysis:
-#
-# Data: trend_direction and percentage_change. Visualization: Indicate whether the price is generally increasing or
-# decreasing, with an optional alert if the percentage change is significant. Implementation: Use icons (e.g.,
-# arrows) or color-coding (green for increasing, red for decreasing) to visually represent the trend. The percentage
-# change can be displayed alongside the trend direction for more context.
 @api_bp.route('/modals/linear_regression/visualization_data', methods=['POST'])
 def get_visualization_data():
     try:
-        # Parse the incoming JSON data
+
         params = request.get_json()
         commodity = params.get('commodity')
         market = params.get('market')
         category = params.get('category')
         data = pd.DataFrame(params.get('dataset'))
 
-        # Preprocess data
         features, target = lr_preprocess_data(data)
         x_train, x_test, y_train, y_test = lr_split_data(features, target)
         model = lr_train_model(x_train, y_train)
 
-        # Ensure the model is a LinearRegression instance
         if not hasattr(model, 'predict'):
             raise ValueError("Model is not correctly initialized.")
 
-        # Generate future dates and price predictions
         future_dates, forecasted_prices = lr_forecast_prices(data, model, commodity, market, category)
 
-        # Calculate insights
         min_price = np.min(forecasted_prices)
         max_price = np.max(forecasted_prices)
         average_price = np.mean(forecasted_prices)
         trend_direction = "increasing" if forecasted_prices[-1] > forecasted_prices[0] else "decreasing"
         percentage_change = ((forecasted_prices[-1] - forecasted_prices[0]) / abs(forecasted_prices[0])) * 100
 
-        # Prepare the response payload
         response_data = {
             "forecast_dates": future_dates.tolist(),
             "forecast_prices": forecasted_prices.tolist(),
@@ -532,65 +358,40 @@ def get_visualization_data():
             }
         }
 
-        # Return the JSON response
         return jsonify(response_data)
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
-# Line Chart:
-#
-# Purpose: To show how prices evolve over time.
-# Values: forecast_dates (x-axis) vs. forecast_prices (y-axis).
-# Bar Chart:
-#
-# Purpose: To compare forecasted prices at different time points.
-# Values: Use forecast_dates as categories and forecast_prices as values.
-# Scatter Plot with Trend Line:
-#
-# Purpose: To analyze the distribution of forecasted prices and the overall trend.
-# Values: forecast_dates (x-axis) vs. forecast_prices (y-axis) with a fitted trend line.
-# Percentage Change Visualization:
-#
-# Purpose: To highlight the rate of change in prices.
-# Values: Use a text or annotation on the chart to show percentage change from the start to the end of the forecast period.
 @api_bp.route('/modals/linear_regression/price_predictions', methods=['POST'])
 def get_price_predictions():
     try:
-        # Parse the incoming JSON data
+
         params = request.get_json()
         commodity = params.get('commodity')
         market = params.get('market')
         category = params.get('category')
 
-        # Ensure dataset is provided
         dataset = params.get('dataset')
         if dataset is None:
             return jsonify({"error": "Dataset is required"}), 400
 
-        # Convert the dataset from list to DataFrame
         data = pd.DataFrame(dataset)
 
-        # Ensure data is a DataFrame
         if not isinstance(data, pd.DataFrame):
             return jsonify({"error": "Data is not in DataFrame format"}), 500
 
-        # Preprocess data and split into train/test sets
         features, target = lr_preprocess_data(data)
         x_train, x_test, y_train, y_test = lr_split_data(features, target)
 
-        # Train the model
         model = lr_train_model(x_train, y_train)
 
-        # Forecast future prices with a maximum limit on periods
         future_dates, future_predictions = lr_forecast_prices(data, model, commodity, market, category, max_periods=120)
 
-        # Handle case where date generation fails
         if future_dates is None:
             return jsonify({"error": future_predictions}), 500
 
-        # Return predictions as JSON response
         return jsonify({
             "price_predictions": {
                 "forecast_dates": future_dates.tolist(),
@@ -599,6 +400,7 @@ def get_price_predictions():
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 import logging
 
@@ -648,7 +450,7 @@ def get_linear_price_predictions():
             logging.debug(f"Group Data for {group_name}: {group_data.head()}")
 
             if group_data.empty:
-                continue  # Skip if no data available for this group
+                continue
 
             X = group_data['date'].map(pd.Timestamp.toordinal).values.reshape(-1, 1)
             y = group_data['price'].values
@@ -704,34 +506,28 @@ def cluster_markets_by_price_levels():
         if not dataset:
             return jsonify({"error": "Dataset is empty"}), 400
 
-        # Convert dataset to DataFrame
         data = pd.DataFrame(dataset)
         logging.debug(f"Initial Data: {data.head()}")
 
-        # Check if necessary columns are present
         required_columns = ['commodity', 'category', 'market', 'price']
         if not all(col in data.columns for col in required_columns):
             return jsonify({"error": f"Dataset must contain the following columns: {', '.join(required_columns)}"}), 400
 
-        # Automatically detect unique commodities and categories in the filtered dataset
         commodities = data['commodity'].unique()
         categories = data['category'].unique()
 
         logging.debug(f"Detected Commodities: {commodities}")
         logging.debug(f"Detected Categories: {categories}")
 
-        # Group by market and calculate average price
         market_prices = data.groupby('market')['price'].mean().reset_index()
         logging.debug(f"Market Average Prices: {market_prices.head()}")
 
-        kmeans = KMeans(n_clusters=3)  # Assuming we want to create 3 clusters: low, medium, high
+        kmeans = KMeans(n_clusters=3)
         market_prices['cluster'] = kmeans.fit_predict(market_prices[['price']])
 
-        # Map cluster labels to descriptive names (optional)
         cluster_map = {0: 'Low Price', 1: 'Medium Price', 2: 'High Price'}
         market_prices['cluster_label'] = market_prices['cluster'].map(cluster_map)
 
-        # Prepare response
         result = {
             "commodities": commodities.tolist(),
             "categories": categories.tolist(),
@@ -753,19 +549,14 @@ def evaluate_model_km():
         if not dataset:
             return jsonify({"error": "Dataset is required"}), 400
 
-        # Convert dataset to DataFrame
         df = pd.DataFrame(dataset)
 
-        # Preprocess data
         preprocessed_data = km_preprocess_data(df)
 
-        # Split data
         x_train, x_test = km_split_data(preprocessed_data)
 
-        # Train model
         model = km_train_model(x_train)
 
-        # Evaluate model
         evaluation_results = km_evaluate_model(model, x_test)
 
         return jsonify(evaluation_results)
@@ -787,10 +578,8 @@ def forecast_clusters():
         x_train, _ = km_split_data(preprocessed_data)
         model = km_train_model(x_train)
 
-        # Forecast clusters using the preprocessed data and trained model
         forecasted_clusters = km_forecast_clusters(preprocessed_data, model)
 
-        # Interpret the forecasted clusters
         interpretation = interpret_forecasted_clusters(forecasted_clusters)
 
         return jsonify({
@@ -816,7 +605,6 @@ def visualize_clusters():
 
         visualized_data = km_visualize_clusters(preprocessed_data, model)
 
-        # Convert the DataFrame to a dictionary (or list of dictionaries)
         visualized_data_dict = visualized_data.to_dict(orient='records')
 
         return jsonify(visualized_data_dict)
@@ -829,7 +617,6 @@ def cluster_insights():
     try:
         params = request.json
 
-        # If params is a list, assume it's the dataset directly
         if isinstance(params, list):
             dataset = params
         elif isinstance(params, dict):
@@ -840,7 +627,6 @@ def cluster_insights():
         if not dataset:
             return jsonify({"error": "Dataset is required"}), 400
 
-        # Check if the dataset is a list
         if not isinstance(dataset, list):
             return jsonify({"error": "Invalid dataset format. Expected a list of records."}), 400
 
@@ -854,80 +640,6 @@ def cluster_insights():
         return jsonify(insights)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-
-# 1. Visualize Cluster Characteristics
-# a. Cluster Distribution
-#
-# Chart Type: Pie Chart or Bar Chart
-# Data: Count of data points per cluster
-# Purpose: Show how data points are distributed among different clusters.
-# b. Mean and Median Prices per Cluster
-#
-# Chart Type: Bar Chart
-# Data: Mean and median prices for each cluster
-# Purpose: Compare average and median prices across clusters.
-# c. Price Range per Cluster
-#
-# Chart Type: Box Plot or Range Bar Chart
-# Data: Price range (minimum and maximum) for each cluster
-# Purpose: Display the variability of prices within each cluster.
-# 2. Visualize Commodity and Market Distribution
-# a. Commodities per Cluster
-#
-# Chart Type: Word Cloud or Bar Chart
-# Data: Most frequent commodities in each cluster
-# Purpose: Highlight the common commodities within each cluster.
-# b. Markets per Cluster
-#
-# Chart Type: Bar Chart or Map (if geographic data is available)
-# Data: Most frequent markets in each cluster
-# Purpose: Show where the data points of each cluster are concentrated geographically or by market.
-# 3. Interactive Visualizations
-# a. Scatter Plot with Clusters
-#
-# Chart Type: Scatter Plot
-# Data: Points with x and y coordinates, colored by cluster
-# Purpose: Visualize the spatial distribution of data points and how they are grouped into clusters.
-# b. Cluster Details
-#
-# Chart Type: Table or List
-# Data: Detailed list of commodities, markets, and price statistics for each cluster
-# Purpose: Provide users with a detailed view of each cluster’s composition.
-# 4. Interpretations
-# a. Cluster Distribution
-#
-# Interpretation: Explain which clusters are more populated and if any cluster has significantly fewer points. This can indicate the relative importance or rarity of certain clusters.
-# b. Mean and Median Prices
-#
-# Interpretation: Describe the pricing trends within each cluster. For example, clusters with higher mean prices might represent premium markets or commodities.
-# c. Price Range
-#
-# Interpretation: Highlight clusters with broad or narrow price ranges. A wide range could indicate variability in prices, while a narrow range might suggest a more consistent market.
-# d. Commodities and Markets
-#
-# Interpretation: Discuss the most common commodities and markets within each cluster. This can help identify what types of goods are prevalent in specific clusters and where they are most commonly sold.
-# Example Visualization Steps
-# Prepare Data for Visualization:
-#
-# Extract the necessary data from the clustering results (mean prices, median prices, price ranges, commodities, markets).
-# Select Visualization Tools:
-#
-# Use libraries like D3.js, Chart.js, or Plotly for interactive and dynamic visualizations.
-# Implement Charts:
-#
-# Create pie charts for cluster distribution.
-# Use bar charts for mean and median prices.
-# Implement box plots or range bars for price ranges.
-# Generate word clouds or bar charts for commodities.
-# Develop maps or bar charts for market distribution.
-# Add Interactivity:
-#
-# Allow users to filter by clusters and view detailed statistics.
-# Provide hover-over details for more information on each data point or cluster.
-# Present Insights:
-#
-# Include text-based explanations alongside visualizations to help users understand what the charts and plots are showing.
 
 
 STATIC_DIR = '/Users/ilmeedesilva/Desktop/ML Ass 4/careBareAI/CareBearAI/app/static'
@@ -945,11 +657,6 @@ def get_plots():
     ]
     plot_urls = {plot_file: f'/static/{plot_file}' for plot_file in plot_files}
     return jsonify(plot_urls)
-
-
-# @api_bp.route('/static/<path:filename>', methods=['GET'])
-# def serve_static(filename):
-#     return send_from_directory(STATIC_DIR, filename)
 
 
 @api_bp.route('/plot/<plot_name>')
