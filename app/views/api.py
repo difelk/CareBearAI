@@ -8,6 +8,7 @@ import io
 from flask import Response, request, jsonify
 from app.services.csv_service import insert_csv_data
 from app.ML.cluster import handle_clustering
+from sklearn.cluster import KMeans
 from app.services.csvhandler import extract_header, get_all_csv_data
 from sklearn.linear_model import LinearRegression
 from app.ML.random_forest import (
@@ -602,6 +603,8 @@ def get_price_predictions():
 import logging
 
 logging.basicConfig(level=logging.DEBUG)
+
+
 @api_bp.route('/modals/predictions/linear_regression/price_predictions', methods=['POST'])
 def get_linear_price_predictions():
     try:
@@ -667,6 +670,75 @@ def get_linear_price_predictions():
                 })
 
         return jsonify(results)
+
+    except Exception as e:
+        logging.error(f"Error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@api_bp.route('/modals/predictions/linear_regression/get-trend', methods=['POST'])
+def get_trend():
+    data = request.json
+    df = pd.DataFrame(data)
+
+    df['date'] = pd.to_datetime(df['date'])
+
+    df['year_month'] = df['date'].dt.to_period('M').astype(str)
+
+    monthly_avg = df.groupby('year_month')['price'].mean().reset_index()
+
+    result = monthly_avg.to_dict(orient='records')
+
+    return jsonify(result)
+
+
+@api_bp.route('/modals/clustering/markets/price_levels', methods=['POST'])
+def cluster_markets_by_price_levels():
+    try:
+        params = request.get_json()
+        dataset = params.get('dataset')
+
+        if not isinstance(dataset, list):
+            return jsonify({"error": "Dataset should be a list of records"}), 400
+
+        if not dataset:
+            return jsonify({"error": "Dataset is empty"}), 400
+
+        # Convert dataset to DataFrame
+        data = pd.DataFrame(dataset)
+        logging.debug(f"Initial Data: {data.head()}")
+
+        # Check if necessary columns are present
+        required_columns = ['commodity', 'category', 'market', 'price']
+        if not all(col in data.columns for col in required_columns):
+            return jsonify({"error": f"Dataset must contain the following columns: {', '.join(required_columns)}"}), 400
+
+        # Automatically detect unique commodities and categories in the filtered dataset
+        commodities = data['commodity'].unique()
+        categories = data['category'].unique()
+
+        logging.debug(f"Detected Commodities: {commodities}")
+        logging.debug(f"Detected Categories: {categories}")
+
+        # Group by market and calculate average price
+        market_prices = data.groupby('market')['price'].mean().reset_index()
+        logging.debug(f"Market Average Prices: {market_prices.head()}")
+
+        kmeans = KMeans(n_clusters=3)  # Assuming we want to create 3 clusters: low, medium, high
+        market_prices['cluster'] = kmeans.fit_predict(market_prices[['price']])
+
+        # Map cluster labels to descriptive names (optional)
+        cluster_map = {0: 'Low Price', 1: 'Medium Price', 2: 'High Price'}
+        market_prices['cluster_label'] = market_prices['cluster'].map(cluster_map)
+
+        # Prepare response
+        result = {
+            "commodities": commodities.tolist(),
+            "categories": categories.tolist(),
+            "clusters": market_prices[['market', 'cluster_label']].to_dict(orient='records')
+        }
+
+        return jsonify(result)
 
     except Exception as e:
         logging.error(f"Error: {e}")
