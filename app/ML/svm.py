@@ -17,7 +17,6 @@ from statsmodels.tsa.arima.model import ARIMA
 from datetime import datetime, timedelta
 from sklearn.decomposition import PCA
 
-# Suppress warnings
 warnings.filterwarnings('ignore')
 
 
@@ -29,23 +28,21 @@ def svm_explore_data(df):
     return {
         "head": df.head().to_dict(orient='records'),
         "tail": df.tail().to_dict(orient='records'),
-        "info": str(df.info()),  # Convert info output to string
+        "info": str(df.info()),
         "description": df.describe().to_dict()
     }
 
 
 def svm_preprocess_data(data):
-    # Identify and Handle Outliers
-    # Use Z-score for identifying outliers
     print("before preprocess data ", data)
     z_scores = np.abs(stats.zscore(data.select_dtypes(include=[np.number])))
     outliers = (z_scores > 3).any(axis=1)
     data_no_outliers = data[~outliers]
     print(f"Number of outliers removed: {sum(outliers)}")
 
-    data = data_no_outliers  # Use the data without outliers
+    data = data_no_outliers
 
-    data = data.dropna()  # Dropping rows with missing values
+    data = data.dropna()
 
     print("before preprocess loop")
     if 'date' in data.columns:
@@ -64,12 +61,11 @@ def svm_preprocess_data(data):
     for feature in numerical_features:
         if feature in data.columns:
             data[feature] = pd.to_numeric(data[feature], errors='coerce')
-    data = data.dropna()  # Drop rows with NaN values created by coercion
+    data = data.dropna()
     data[numerical_features] = scaler.fit_transform(data[numerical_features])
 
-    # Classify prices into "high" and "low" based on the median price
     median_price = data['price'].median()
-    data['price_class'] = (data['price'] > median_price).astype(int)  # 0 for "low", 1 for "high"
+    data['price_class'] = (data['price'] > median_price).astype(int)
     target = data['price_class']
     features = data.drop(columns=['price', 'price_class'])
     print("after preprocess loop")
@@ -99,7 +95,6 @@ def svm_train_model(x_train, y_train):
 
     random_search.fit(x_train_scaled, y_train)
 
-    # Capture training feature columns and data types
     feature_names = x_train.columns.tolist()
     training_dtypes = x_train.dtypes
 
@@ -107,7 +102,6 @@ def svm_train_model(x_train, y_train):
 
 
 def svm_evaluate_model(data):
-    # data = svm_load_data(file_path)
     print("before preprocess")
     features, target, scaler = svm_preprocess_data(data)
     print("after preprocess")
@@ -115,7 +109,6 @@ def svm_evaluate_model(data):
     best_svc, grid_search, scaler, feature_columns, training_dtypes = svm_train_model(x_train,
                                                                                       y_train)
 
-    # Ensure test data has the same columns as the training data
     x_test = x_test.reindex(columns=feature_columns, fill_value=0)
 
     y_pred = best_svc.predict(x_test)
@@ -165,7 +158,6 @@ def svm_generate_precision_recall_curve(y_test, y_prob):
 
 
 def svm_forecast_prices(data, model, commodity=None, market=None, category=None):
-    # Filter data for the specified commodity, market, and category
     if commodity:
         data = data[data['commodity'] == commodity]
     if market:
@@ -177,7 +169,6 @@ def svm_forecast_prices(data, model, commodity=None, market=None, category=None)
         data['date'] = pd.to_datetime(data['date'])
         data = data.set_index('date')
 
-    # Resample to monthly data and interpolate missing values
     if 'price' not in data.columns or data.empty:
         raise ValueError("No 'price' column or empty data after filtering.")
 
@@ -186,11 +177,9 @@ def svm_forecast_prices(data, model, commodity=None, market=None, category=None)
     if price_data.empty:
         raise ValueError("No data available for forecasting after resampling.")
 
-    # Fit ARIMA model
-    arima_model = ARIMA(price_data, order=(1, 1, 1))  # Adjust order as needed
+    arima_model = ARIMA(price_data, order=(1, 1, 1))
     model_fit = arima_model.fit()
 
-    # Forecast for the next 12 months
     forecast_steps = 12
     forecast = model_fit.get_forecast(steps=forecast_steps)
     forecast_mean = forecast.predicted_mean
@@ -199,11 +188,9 @@ def svm_forecast_prices(data, model, commodity=None, market=None, category=None)
     print("Shape of forecast_mean:", forecast_mean.shape if hasattr(forecast_mean, 'shape') else 'No shape attribute')
     print("Forecast Mean Output:", forecast_mean)
 
-    # Generate forecast dates
     forecast_dates = pd.date_range(start=price_data.index[-1] + pd.DateOffset(months=1), periods=forecast_steps,
                                    freq='M')
 
-    # Return forecasted dates and prices
     forecast_df = pd.DataFrame({
         'date': forecast_dates,
         'forecasted_price': forecast_mean
@@ -246,7 +233,6 @@ def get_historical_averages(data, end_date, months=6):
     start_date = end_date - timedelta(days=30 * months)
     historical_data = data[(data['date'] >= start_date) & (data['date'] <= end_date)]
 
-    # Compute average prices for each commodity
     historical_averages = historical_data.groupby('commodity').agg({
         'price': 'mean',
         'USD RATE': 'mean'
@@ -257,111 +243,19 @@ def get_historical_averages(data, end_date, months=6):
 
 
 def prepare_forecast_data(data, historical_averages):
-    # Merge historical averages with the new data
     forecast_data = data.merge(historical_averages, on='commodity', how='left')
 
-    # Fill NaN values if there are commodities with no historical data
     forecast_data['avg_price'].fillna(forecast_data['price'].mean(), inplace=True)
     forecast_data['avg_usd_rate'].fillna(forecast_data['USD RATE'].mean(), inplace=True)
 
     return forecast_data
 
 
-# Forecast price classification (high or low)
-from statsmodels.tsa.arima.model import ARIMA
-
-# def svm_forecast_price_class(model, new_data, feature_names, training_dtypes, start_date, end_date, scaler=None):
-#     # Process date if it exists in the new_data
-#     if 'date' in new_data.columns:
-#         new_data['date'] = pd.to_datetime(new_data['date'])
-#         new_data = new_data[(new_data['date'] >= start_date) & (new_data['date'] <= end_date)]
-#         new_data['year'] = new_data['date'].dt.year
-#         new_data['month'] = new_data['date'].dt.month
-#         new_data['day'] = new_data['date'].dt.day
-#         new_data = new_data.drop(columns=['date'])
-#
-#     # Convert categorical columns to dummy variables
-#     categorical_columns = ['admin1', 'admin2', 'market', 'category', 'commodity', 'unit', 'currency', 'priceflag',
-#                            'pricetype']
-#     new_data = pd.get_dummies(new_data, columns=categorical_columns, drop_first=False)
-#
-#     # Add missing columns with zeros
-#     missing_cols = set(feature_names) - set(new_data.columns)
-#     for col in missing_cols:
-#         new_data[col] = 0
-#
-#     # Remove columns that are not in the training feature names
-#     new_data = new_data[[col for col in new_data.columns if col in feature_names]]
-#
-#     # Reorder columns to match training feature names
-#     new_data = new_data[feature_names]
-#
-#     # Ensure data types match those used in training
-#     for col in new_data.columns:
-#         if col in training_dtypes:
-#             dtype = training_dtypes[col]
-#             if dtype == 'float64' or dtype == 'int64':
-#                 new_data[col] = new_data[col].fillna(0).astype(dtype)
-#             elif dtype == 'bool':
-#                 new_data[col] = new_data[col].fillna(False).astype(dtype)
-#             elif dtype == 'object':
-#                 new_data[col] = new_data[col].fillna('Unknown').astype(dtype)
-#             elif dtype == 'datetime64[ns]':
-#                 default_date = pd.Timestamp('1900-01-01')
-#                 new_data[col] = new_data[col].fillna(default_date).astype(dtype)
-#             else:
-#                 pass
-#
-#     # Convert DataFrame to NumPy array for prediction
-#     new_data_array = new_data.values
-#
-#     # Predict and map the numeric predictions to labels
-#     predictions = model.predict(new_data_array)
-#     prediction_labels = ["low" if p == 0 else "high" for p in predictions]
-#
-#     # Extract commodity names from columns
-#     commodity_columns = [col for col in feature_names if col.startswith('commodity_')]
-#
-#     result = new_data.copy()
-#     result['price_class'] = prediction_labels
-#
-#     commodity_results = {}
-#     for commodity in commodity_columns:
-#         is_commodity_column = result[commodity] == 1
-#         if is_commodity_column.any():
-#             commodity_name = commodity.replace('commodity_', '')
-#             commodity_prices = result.loc[is_commodity_column, 'avg_price']
-#
-#             if not commodity_prices.empty:
-#                 avg_price = commodity_prices.mean()
-#
-#                 # Fit ARIMA model for the given commodity's average prices
-#                 arima_model = ARIMA(commodity_prices, order=(1, 1, 1))  # Adjust order as needed
-#                 model_fit = arima_model.fit()
-#
-#                 # Forecast for the next 1 month
-#                 forecast_prices = model_fit.forecast(steps=1)
-#
-#                 # Determine high or low based on comparison with the avg price
-#                 forecasted_class = ["high" if price > avg_price else "low" for price in forecast_prices]
-#
-#                 commodity_results[commodity_name] = {
-#                     "forecasted_prices": forecast_prices.tolist(),
-#                     "forecasted_class": forecasted_class,
-#                     "average_price": avg_price
-#                 }
-#
-#     return commodity_results
-
-import pandas as pd
-from statsmodels.tsa.arima.model import ARIMA
-
 import pandas as pd
 from statsmodels.tsa.arima.model import ARIMA
 
 
 def svm_forecast_price_class(model, new_data, feature_names, training_dtypes, scaler=None):
-    # Process date if it exists in the new_data
     if 'date' in new_data.columns:
         new_data['date'] = pd.to_datetime(new_data['date'])
         new_data['year'] = new_data['date'].dt.year
@@ -369,23 +263,18 @@ def svm_forecast_price_class(model, new_data, feature_names, training_dtypes, sc
         new_data['day'] = new_data['date'].dt.day
         new_data = new_data.drop(columns=['date'])
 
-    # Convert categorical columns to dummy variables
     categorical_columns = ['admin1', 'admin2', 'market', 'category', 'commodity', 'unit', 'currency', 'priceflag',
                            'pricetype']
     new_data = pd.get_dummies(new_data, columns=categorical_columns, drop_first=False)
 
-    # Add missing columns with zeros
     missing_cols = set(feature_names) - set(new_data.columns)
     for col in missing_cols:
         new_data[col] = 0
 
-    # Remove columns that are not in the training feature names
     new_data = new_data[[col for col in new_data.columns if col in feature_names]]
 
-    # Reorder columns to match training feature names
     new_data = new_data[feature_names]
 
-    # Ensure data types match those used in training
     for col in new_data.columns:
         if col in training_dtypes:
             dtype = training_dtypes[col]
@@ -401,29 +290,16 @@ def svm_forecast_price_class(model, new_data, feature_names, training_dtypes, sc
             else:
                 pass
 
-    # Debugging: Print feature columns and data types
-    print("Training feature columns:", feature_names)
-    print("\nNew data feature columns:", new_data.columns.tolist())
-    print("\nNew data types:", new_data.dtypes)
-    print("\nTraining data types:", training_dtypes)
-
-    # Convert DataFrame to NumPy array for prediction
     new_data_array = new_data.values
 
-    # Debugging: Print the shape of the new data array
-    print("\nNew data shape:", new_data_array.shape)
-
-    # Predict and map the numeric predictions to labels
     predictions = model.predict(new_data_array)
     prediction_labels = ["low" if p == 0 else "high" for p in predictions]
 
-    # Extract commodity names from columns
     commodity_columns = [col for col in feature_names if col.startswith('commodity_')]
 
     result = new_data.copy()
     result['price_class'] = prediction_labels
 
-    # Handle overall average prices for one-hot encoded commodities
     commodity_prefix = 'commodity_'
     commodities = [col.replace(commodity_prefix, '') for col in commodity_columns]
 
@@ -438,32 +314,27 @@ def svm_forecast_price_class(model, new_data, feature_names, training_dtypes, sc
     for commodity in commodity_columns:
         commodity_name = commodity.replace('commodity_', '')
 
-        # Check if the commodity exists in overall average prices
         if commodity_name not in overall_avg_prices:
             print(f"Warning: Commodity '{commodity_name}' not found in overall average prices.")
             continue
 
         is_commodity_column = result[commodity] == 1
         if is_commodity_column.any():
-            # Calculate the average price for the given time period
+
             commodity_prices = result.loc[is_commodity_column, 'avg_price']
 
-            # Check if commodity_prices is non-empty and a Series before fitting ARIMA
             if not commodity_prices.empty:
                 if not isinstance(commodity_prices, pd.Series):
                     commodity_prices = pd.Series(commodity_prices)
 
                 print(f"Commodity: {commodity_name}, Commodity Prices: {commodity_prices}")
 
-                # Fit ARIMA model for the given commodity's average prices
                 try:
-                    arima_model = ARIMA(commodity_prices, order=(1, 1, 1))  # Adjust order as needed
+                    arima_model = ARIMA(commodity_prices, order=(1, 1, 1))
                     model_fit = arima_model.fit()
 
-                    # Forecast for the next 1 month
                     forecast_prices = model_fit.forecast(steps=1)
 
-                    # Determine high or low based on comparison with the average price
                     forecasted_class = ["high" if price > overall_avg_prices[commodity_name] else "low" for price in
                                         forecast_prices]
 
@@ -481,14 +352,11 @@ def svm_forecast_price_class(model, new_data, feature_names, training_dtypes, sc
 
 
 def save_plot(fig, plot_name):
-    # Define static directory
     static_dir = '/Users/ilmeedesilva/Desktop/ML Ass 4/careBareAI/CareBearAI/app/static'
 
-    # Ensure the directory exists
     if not os.path.exists(static_dir):
         os.makedirs(static_dir)
 
-    # Save the figure
     plot_path = os.path.join(static_dir, f'{plot_name}.png')
     fig.savefig(plot_path)
     plt.close(fig)
@@ -496,23 +364,19 @@ def save_plot(fig, plot_name):
 
 
 def svm_create_plots(features, target, best_svc, evaluation_results):
-    # Define static directory
     static_dir = '/Users/ilmeedesilva/Desktop/ML Ass 4/careBareAI/CareBearAI/app/static'
 
-    # Ensure the directory exists
     if not os.path.exists(static_dir):
         os.makedirs(static_dir)
 
     plot_paths = {}
 
-    # Outlier Identification for Plotting
     numerical_data = features.select_dtypes(include=[np.number])
     z_scores = np.abs(stats.zscore(numerical_data))
     outliers = (z_scores > 3).any(axis=1)
     features_with_outliers = features.copy()
     features_with_outliers['outlier'] = outliers
 
-    # Plot: Outliers
     fig, ax = plt.subplots(figsize=(14, 8))
     scatter = ax.scatter(features_with_outliers['latitude'], features_with_outliers['longitude'],
                          c=features_with_outliers['outlier'], cmap='coolwarm', alpha=0.7)
@@ -522,7 +386,6 @@ def svm_create_plots(features, target, best_svc, evaluation_results):
     fig.colorbar(scatter, ax=ax, label='Outlier')
     plot_paths['outliers_plot'] = save_plot(fig, 'Outliers Visualization')
 
-    # Plot: Confusion Matrix Heatmap
     conf_matrix = np.array(evaluation_results['confusion_matrix'])
     fig, ax = plt.subplots(figsize=(8, 6))
     sns.heatmap(conf_matrix, annot=True, fmt='d', cmap='Blues', ax=ax)
@@ -531,7 +394,6 @@ def svm_create_plots(features, target, best_svc, evaluation_results):
     ax.set_ylabel('True')
     plot_paths['confusion_matrix'] = save_plot(fig, 'Confusion Matrix Heatmap')
 
-    # Plot: Cross-Validation Score Distribution
     cv_scores = evaluation_results['cv_scores']
     fig, ax = plt.subplots(figsize=(12, 8))
     ax.boxplot(cv_scores, vert=False)
@@ -539,7 +401,6 @@ def svm_create_plots(features, target, best_svc, evaluation_results):
     ax.set_title('Cross-Validation Score Distribution', fontsize=16)
     plot_paths['cv_score_distribution'] = save_plot(fig, 'Cross-Validation Score Distribution')
 
-    # Plot: Grid Search Results
     results = pd.DataFrame(evaluation_results['grid_search_results'])
     fig, ax = plt.subplots(figsize=(14, 8))
     sns.lineplot(data=results, x='param_C', y='mean_test_score', hue='param_kernel', marker='o', ax=ax)
@@ -549,7 +410,6 @@ def svm_create_plots(features, target, best_svc, evaluation_results):
     ax.legend(title='Kernel', title_fontsize='13', fontsize='12')
     plot_paths['grid_search_results'] = save_plot(fig, 'Grid Search Results')
 
-    # Plot: Feature Importance (for Linear Kernel)
     if best_svc.kernel == 'linear':
         importances = best_svc.coef_[0]
         top_features = np.argsort(np.abs(importances))[-5:]
@@ -560,7 +420,6 @@ def svm_create_plots(features, target, best_svc, evaluation_results):
         ax.set_title('Top 5 Features by Importance', fontsize=16)
         plot_paths['feature_importance'] = save_plot(fig, 'Feature Importance')
 
-    # Plot: Pairplot of Top Correlated Features
     correlations = features.corrwith(target)
     top_corr_features = correlations.abs().sort_values(ascending=False).head(5).index
     features_with_target = pd.concat([features[top_corr_features], target.reset_index(drop=True)], axis=1)
@@ -570,7 +429,6 @@ def svm_create_plots(features, target, best_svc, evaluation_results):
     plt.suptitle('Pairplot of Top Correlated Features', y=1.02, fontsize=16)
     plot_paths['pairplot'] = save_plot(fig, 'Pairplot of Top Correlated Features')
 
-    # Plot: Feature Distribution (Histograms for each feature)
     features_hist = features.copy()
     features_hist['Price'] = target
     melted = features_hist.melt(id_vars='Price', var_name='Feature', value_name='Value')
@@ -588,23 +446,17 @@ def svm_create_plots(features, target, best_svc, evaluation_results):
 
 # Example usage
 def main():
-    # Load data
     file_path = '/Users/ilmeedesilva/Downloads/wfp_food_prices_lka.csv'
     data = svm_load_data(file_path)
 
-    # Data preprocessing
     features, target, scaler = svm_preprocess_data(data)
 
-    # Split data
     x_train, x_test, y_train, y_test = svm_split_data(features, target)
 
-    # Train model
     best_svc, grid_search, scaler, feature_columns, training_dtypes = svm_train_model(x_train, y_train)
 
-    # Evaluate model
     evaluation_results = svm_evaluate_model(data)
 
-    # Create plots
     plot_paths = svm_create_plots(features, target, best_svc, evaluation_results)
     print(f"Plots saved: {plot_paths}")
 
