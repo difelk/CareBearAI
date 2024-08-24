@@ -294,11 +294,31 @@ def get_risk_management():
     try:
         params = request.json
         dataset = params.get('dataset')
+
+        #dataset to dataFrame
         df = pd.DataFrame(dataset)
+
+        # data cleaning
+        df = df.dropna()
+        df = df.drop_duplicates()
+        #convert relevant columns to appropriate types
+        df['date'] = pd.to_datetime(df['date'], errors='coerce')
+        df = df.dropna(subset=['date'])  # remove the data row that covert failed
+
+        numeric_columns = df.select_dtypes(include=[np.number]).columns
+        df[numeric_columns] = df[numeric_columns].apply(pd.to_numeric, errors='coerce')
+
+        df = df.dropna()
+
         features, target = lr_preprocess_data(df)
+
+        # splitting
         x_train, x_test, y_train, y_test = lr_split_data(features, target)
+
+        # training
         model = lr_train_model(x_train, y_train)
 
+        # Predictions
         y_pred = model.predict(x_test)
 
         return jsonify({
