@@ -215,29 +215,46 @@ def handle_linear_regression_by_date(csv_file_path, independent_vars, dependent_
 
 
 def get_linear_regression(dataset, linearXaxis, linearYaxis):
+    # Convert dataset to DataFrame
     df = pd.DataFrame(dataset)
 
+    # Ensure linearXaxis and linearYaxis are lists
     if not isinstance(linearXaxis, list):
         linearXaxis = [linearXaxis]
     if not isinstance(linearYaxis, list):
         linearYaxis = [linearYaxis]
 
+    # Check if columns exist in the dataset
     for col in linearXaxis:
         if col not in df.columns:
             return jsonify({'error': f"Column '{col}' not found in dataset."}), 400
     if linearYaxis[0] not in df.columns:
         return jsonify({'error': f"Column '{linearYaxis[0]}' not found in dataset."}), 400
 
-    X = df[linearXaxis]
+    # Data Cleaning
 
+    # missing values removing
+    df = df.dropna()
+
+    # duplicates
+    df = df.drop_duplicates()
+
+    #indip columns to numeric if needed
+    for col in linearXaxis:
+        df[col] = pd.to_numeric(df[col], errors='coerce')
+
+    # 4. non numeric Y
     if df[linearYaxis[0]].dtype == 'object':
         encoder = LabelEncoder()
         df[linearYaxis[0]] = encoder.fit_transform(df[linearYaxis[0]])
 
-    y = df[linearYaxis[0]]
+    X = df[linearXaxis].values
+    y = df[linearYaxis[0]].values
+
 
     model = LinearRegression()
     model.fit(X, y)
+
 
     predictions = model.predict(X)
 
